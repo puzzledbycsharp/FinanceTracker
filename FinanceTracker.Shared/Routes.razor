@@ -1,0 +1,46 @@
+﻿@using System.Reflection
+
+<Router AppAssembly="typeof(Layout.MainLayout).Assembly"
+        AdditionalAssemblies="GetClientAssemblies()">
+    <Found Context="routeData">
+        <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)" />
+        <FocusOnNavigate RouteData="routeData" Selector="h1" />
+    </Found>
+    <NotFound>
+        <LayoutView Layout="typeof(Layout.MainLayout)">
+            <p role="alert">Sorry, there's nothing at this address.</p>
+        </LayoutView>
+    </NotFound>
+</Router>
+
+@code {
+    [Parameter]
+    public IEnumerable<Assembly>? AdditionalAssemblies { get; set; }
+
+    private IEnumerable<Assembly> GetClientAssemblies()
+    {
+        var assemblies = new List<Assembly>();
+
+        // 1. Add server-provided assemblies during the initial prerender flash
+        if (AdditionalAssemblies != null)
+        {
+            assemblies.AddRange(AdditionalAssemblies);
+        }
+
+        // 2. Dynamically load the Client assembly once WebAssembly takes over in the browser
+        // This avoids circular dependencies while ensuring the router finds your /import page
+        try
+        {
+            var clientAssembly = AppDomain.CurrentDomain.GetAssemblies()
+                .FirstOrDefault(a => a.GetName().Name == "FinanceTracker.Web.Client");
+
+            if (clientAssembly != null && !assemblies.Contains(clientAssembly))
+            {
+                assemblies.Add(clientAssembly);
+            }
+        }
+        catch { }
+
+        return assemblies;
+    }
+}

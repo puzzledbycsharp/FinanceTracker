@@ -1,0 +1,681 @@
+﻿@page "/"
+@using FinanceTracker.Shared.Data
+@using FinanceTracker.Shared.Models
+@using FinanceTracker.Shared.Services
+@using Microsoft.EntityFrameworkCore
+@inject FinanceDbContext DbContext
+@inject NavigationManager Navigation
+@inject FinancialInsightService InsightService
+@inject FinanceTracker.Shared.Services.GamificationEngineService GamificationEngine
+
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div class="d-flex align-items-center gap-3">
+            <h2>Financial Dashboard</h2>
+            @if (_totalPoints > 0)
+            {
+                <span class="badge rounded-pill bg-warning text-dark border border-light shadow-sm fs-6 px-3 py-2" title="Total Points">
+                    <i class="bi bi-star-fill me-1"></i> @_totalPoints
+                </span>
+            }
+        </div>
+
+        @if (!_isLoading && _availablePeriods.Any())
+        {
+            <div class="d-flex align-items-center gap-2">
+                <label for="monthSelect" class="fw-bold text-secondary mb-0">Period:</label>
+                <select id="monthSelect" class="form-select form-select-sm w-auto" @onchange="OnPeriodChanged">
+                    @foreach (var period in _availablePeriods)
+                    {
+                        <option value="@period.Value" selected="@(period.Value == _selectedPeriod)">
+                            @period.Label
+                        </option>
+                    }
+                </select>
+            </div>
+        }
+    </div>
+
+    @if (_isLoading)
+    {
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+    }
+    else
+    {
+        <!-- Summary Cards with Drill-Down Links -->
+        <div class="row mb-4 g-3">
+            <div class="col-md-3">
+                <div class="card shadow-sm h-100 border-start border-4 border-success">
+                    <div class="card-body">
+                        <h6 class="text-muted">Total Income</h6>
+                        <h3 class="mb-0">@_monthlyIncome.ToString("C")</h3>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-3">
+                <div class="card shadow-sm h-100 border-start border-4 border-secondary bg-light">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <h6 class="text-muted">Remaining Expected Bills</h6>
+                            <FinanceTracker.Shared.Components.InfoTooltip Text="Estimated fixed bills (based on your 2-month average) that haven't hit your account yet this month." />
+                        </div>
+                        <h3 class="mb-0 text-secondary">@_remainingExpectedBills.ToString("C")</h3>
+                        <small class="text-muted">@_paidFixedBills.ToString("C") paid so far</small>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-3">
+                <div class="card shadow-sm h-100 border-start border-4 border-danger">
+                    <div class="card-body">
+                        <h6 class="text-muted">Total Expenses</h6>
+                        <h3 class="mb-0">@_monthlyExpenses.ToString("C")</h3>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-3">
+                <div class="card shadow-sm h-100 border-start border-4 @(_safeToSpend >= 0 ? "border-primary" : "border-danger")">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <h6 class="text-muted fw-bold">Safe to Spend</h6>
+                            <FinanceTracker.Shared.Components.InfoTooltip Text="Your total income minus everything you've already spent, minus your remaining expected fixed bills." />
+                        </div>
+                        <h3 class="mb-0 @(_safeToSpend >= 0 ? "text-primary" : "text-danger")">@_safeToSpend.ToString("C")</h3>
+                        <small class="text-muted">True leftover cash flow</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- NEW: 3-Item Flex Carousel -->
+        @if (_insights.Any())
+        {
+            <div class="card shadow-sm mb-4 border-0">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center border-bottom-0 pt-3 pb-0">
+                    <h5 class="mb-0 fw-bold">
+                        <span class="bi bi-lightbulb-fill text-warning me-2" aria-hidden="true"></span> Trend Insights
+                    </h5>
+
+                    <!-- Carousel Controls -->
+                    <div class="d-flex align-items-center gap-3">
+                        <button class="btn btn-sm btn-outline-secondary rounded-circle" @onclick="PreviousInsight" aria-label="Previous Insight">
+                            <span class="bi bi-chevron-left" aria-hidden="true"></span>
+                        </button>
+                        <span class="text-muted small fw-bold">@(_currentInsightIndex + 1) of @_insights.Count</span>
+                        <button class="btn btn-sm btn-outline-secondary rounded-circle" @onclick="NextInsight" aria-label="Next Insight">
+                            <span class="bi bi-chevron-right" aria-hidden="true"></span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card-body p-4">
+                    <div @key="_currentInsightIndex" class="insight-slide w-100 d-flex gap-3 justify-content-center align-items-stretch">
+                        @for (int i = 0; i < Math.Min(3, _insights.Count); i++)
+                        {
+                            var index = (_currentInsightIndex + i) % _insights.Count;
+                            var currentInsight = _insights[index];
+                            var targetUrl = currentInsight.Category == "Discretionary"
+                                ? $"/transactions?period={_selectedPeriod}&type=Expense&maxamount=20"
+                                : $"/transactions?period={_selectedPeriod}&category={Uri.EscapeDataString(currentInsight.Category)}";
+
+                            <div class="flex-fill" style="width: 33%;">
+                                <a href="@targetUrl" class="text-decoration-none text-dark d-block h-100 card-hover">
+                                    <div class="p-4 rounded border h-100 d-flex flex-column justify-content-start align-items-center text-center @(currentInsight.Severity == InsightSeverity.Alert ? "border-danger bg-danger bg-opacity-10" : "border-warning bg-warning bg-opacity-10")">
+                                        <div class="d-flex justify-content-center align-items-center gap-2 mb-2">
+                                            <i class="bi @currentInsight.Icon fs-4 @(currentInsight.Severity == InsightSeverity.Alert ? "text-danger" : "text-warning")"></i>
+                                            <h5 class="text-dark mb-0 fw-bold fs-6">@currentInsight.Title</h5>
+                                        </div>
+                                        <p class="mb-3 text-secondary" style="font-size: 0.9rem;">@currentInsight.Message</p>
+                                        @if (currentInsight.PotentialSavings > 0)
+                                        {
+                                            <span class="badge bg-white text-dark border p-2 mt-auto shadow-sm w-100">
+                                                Potential recovery: ~@currentInsight.PotentialSavings.ToString("C")
+                                            </span>
+                                        }
+                                    </div>
+                                </a>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+
+        <!-- 6-Month Cash Flow Trend Chart -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-light">
+                <h5 class="mb-0">6-Month Cash Flow Trend</h5>
+            </div>
+            <div class="card-body">
+                @if (!_cashFlowTrend.Any())
+                {
+                    <p class="text-muted text-center p-3">Not enough data to display trend.</p>
+                }
+                else
+                {
+                    <div class="d-flex justify-content-around align-items-end" style="height: 220px; border-bottom: 1px solid #dee2e6;">
+                        @foreach (var month in _cashFlowTrend)
+                        {
+                            var incomeHeight = _maxCashFlowAmount > 0 ? (month.Income / _maxCashFlowAmount) * 100 : 0;
+                            var expenseHeight = _maxCashFlowAmount > 0 ? (month.Expense / _maxCashFlowAmount) * 100 : 0;
+
+                            <div class="d-flex flex-column align-items-center h-100 justify-content-end" style="width: 14%; flex-shrink: 1;">
+                                <div class="d-flex w-100 justify-content-center gap-1 align-items-end" style="height: 180px;">
+                                    <div class="bg-success rounded-top chart-bar"
+                                         style="width: 45%; height: @(incomeHeight.ToString("0.##"))%;"
+                                         title="Income: @month.Income.ToString("C")">
+                                    </div>
+                                    <div class="bg-danger rounded-top chart-bar"
+                                         style="width: 45%; height: @(expenseHeight.ToString("0.##"))%;"
+                                         title="Expense: @month.Expense.ToString("C")">
+                                    </div>
+                                </div>
+                                <span class="mt-2 small fw-bold text-muted">@month.MonthLabel</span>
+                            </div>
+                        }
+                    </div>
+
+                    <!-- Chart Legend -->
+                    <div class="d-flex justify-content-center gap-4 mt-3">
+                        <div class="d-flex align-items-center gap-2">
+                            <div style="width: 12px; height: 12px;" class="bg-success rounded"></div>
+                            <small class="text-muted fw-bold">Income</small>
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                            <div style="width: 12px; height: 12px;" class="bg-danger rounded"></div>
+                            <small class="text-muted fw-bold">Expense</small>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <!-- Weekly Snapshot & Achievements -->
+        <div class="row mb-4">
+            <!-- Weekly Expenses -->
+            <div class="col-md-6 mb-3 mb-md-0">
+                <div class="card shadow-sm h-100">
+                    <div class="card-header bg-light">Weekly Spend Pacing (Discretionary)</div>
+                    <div class="card-body p-0">
+                        <div class="list-group list-group-flush">
+                            @foreach (var week in _weeklySpends.OrderBy(w => w.Key))
+                            {
+                                <a href="/transactions?period=@_selectedPeriod&week=@week.Key&type=Expense"
+                                   class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                                    <span class="text-dark">Week @week.Key <small class="text-muted">(Days @((week.Key - 1) * 7 + 1)-@(Math.Min(week.Key * 7, DateTime.DaysInMonth(int.Parse(_selectedPeriod.Split('-')[0]), int.Parse(_selectedPeriod.Split('-')[1])))))</small></span>
+                                    <span class="badge bg-secondary rounded-pill">@week.Value.ToString("C")</span>
+                                </a>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Gamification Badges -->
+            <div class="col-md-6">
+                <div class="card shadow-sm h-100">
+                    <div class="card-header bg-light">Monthly Achievements</div>
+                    <div class="card-body d-flex flex-wrap gap-2 align-items-start">
+                        @if (!_earnedBadges.Any())
+                        {
+                            <p class="text-muted w-100 text-center mt-3">Analyzing spending patterns to award badges...</p>
+                        }
+                        else
+                        {
+                            @foreach (var badge in _earnedBadges)
+                            {
+                                <div class="badge rounded-pill p-3 border text-start d-flex align-items-center gap-2 @badge.CssClass" style="min-width: 140px;">
+                                    <i class="bi @badge.Icon fs-4"></i>
+                                    <div class="d-flex flex-column">
+                                        <span class="fw-bold text-dark">@badge.Title</span>
+                                        <small class="text-dark opacity-75 fw-normal">@badge.Description</small>
+                                    </div>
+                                </div>
+                            }
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Paced Budget Progress -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Budget Pacing (@_selectedPeriodLabel)</h5>
+                <small class="text-muted">Target Pace: @(_targetPacePercentage.ToString("P0"))</small>
+            </div>
+            <div class="card-body">
+                @if (!_budgetTrackers.Any())
+                {
+                    <p class="text-muted p-3">No budgets configured yet.</p>
+                }
+                else
+                {
+                    @foreach (var budget in _budgetTrackers)
+                    {
+                        <a href="/transactions?period=@_selectedPeriod&category=@Uri.EscapeDataString(budget.Category)" class="text-decoration-none text-dark d-block mb-3 px-2 py-1 rounded card-hover">
+                            <div class="d-flex justify-content-between mb-1">
+                                <strong>@budget.Category</strong>
+                                <span>
+                                    <span class="fw-bold">@budget.Spent.ToString("C")</span>
+                                    <span class="text-muted"> / @budget.Limit.ToString("C")</span>
+                                </span>
+                            </div>
+                            <div class="progress" style="height: 24px;">
+                                <div class="progress-bar @budget.StatusColor"
+                                     role="progressbar"
+                                     style="width: @(Math.Min(budget.SpentPercentage * 100, 100).ToString("0.##"))%;"
+                                     aria-valuenow="@(budget.SpentPercentage * 100)"
+                                     aria-valuemin="0"
+                                     aria-valuemax="100">
+                                    @(Math.Round(budget.SpentPercentage * 100))%
+                                </div>
+                            </div>
+                        </a>
+                    }
+                }
+            </div>
+        </div>
+
+        <!-- Expense Breakdown with Drill-Down Links -->
+        <div class="card shadow-sm">
+            <div class="card-header bg-light">
+                <h5 class="mb-0">Expense Breakdown (@_selectedPeriodLabel)</h5>
+            </div>
+            <div class="card-body p-0">
+                @if (!_categoryExpenses.Any())
+                {
+                    <p class="text-muted p-3">No expenses recorded for this period.</p>
+                }
+                else
+                {
+                    <div class="list-group list-group-flush">
+                        @foreach (var category in _categoryExpenses)
+                        {
+                            <a href="/transactions?period=@_selectedPeriod&category=@Uri.EscapeDataString(category.Key)"
+                               class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                                <span>@category.Key</span>
+                                <span class="badge bg-secondary rounded-pill">@category.Value.ToString("C")</span>
+                            </a>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+<style>
+    .card-hover {
+        transition: transform 0.2s ease-in-out;
+    }
+
+        .card-hover:hover {
+            transform: scale(1.02);
+            cursor: pointer;
+        }
+
+    .chart-bar:hover {
+        opacity: 0.8;
+        filter: brightness(1.1);
+    }
+
+    .insight-slide {
+        animation: fadeInSlide 0.3s ease-out forwards;
+    }
+
+    @@keyframes fadeInSlide {
+        from {
+            opacity: 0;
+            transform: translateX(15px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateX(0);
+        }
+    }
+</style>
+
+@code {
+    private bool _isLoading = true;
+    private decimal _monthlyIncome = 0;
+    private decimal _monthlyExpenses = 0;
+    private decimal _netCashFlow = 0;
+    private Dictionary<string, decimal> _categoryExpenses = new();
+    private decimal _remainingExpectedBills = 0;
+    private decimal _paidFixedBills = 0;
+    private decimal _safeToSpend = 0;
+
+    private List<PeriodOption> _availablePeriods = new();
+    private string _selectedPeriod = string.Empty;
+    private string _selectedPeriodLabel = string.Empty;
+
+    private decimal _targetPacePercentage = 0;
+    private List<BudgetTracker> _budgetTrackers = new();
+
+    private Dictionary<int, decimal> _weeklySpends = new();
+    private List<Badge> _earnedBadges = new();
+
+    private List<MonthlyCashFlow> _cashFlowTrend = new();
+    private decimal _maxCashFlowAmount = 0;
+    private List<FinancialInsight> _insights = new();
+    private int _totalPoints = 0;
+
+    private int _currentInsightIndex = 0;
+
+    private class MonthlyCashFlow
+    {
+        public string MonthLabel { get; set; } = string.Empty;
+        public decimal Income { get; set; }
+        public decimal Expense { get; set; }
+    }
+
+    private class Badge
+    {
+        public string Title { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public string Icon { get; set; } = string.Empty;
+        public string CssClass { get; set; } = string.Empty;
+    }
+
+    private class BudgetTracker
+    {
+        public string Category { get; set; } = string.Empty;
+        public decimal Limit { get; set; }
+        public decimal Spent { get; set; }
+        public decimal SpentPercentage => Limit > 0 ? Spent / Limit : 0;
+        public string StatusColor { get; set; } = "bg-success";
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAvailablePeriodsAsync();
+        await LoadDashboardDataAsync();
+    }
+
+    private async Task LoadAvailablePeriodsAsync()
+    {
+        var dates = await DbContext.Transactions
+            .Select(t => new { t.Date.Year, t.Date.Month })
+            .Distinct()
+            .OrderByDescending(x => x.Year)
+            .ThenByDescending(x => x.Month)
+            .ToListAsync();
+
+        _availablePeriods = dates.Select(d => new PeriodOption
+        {
+            Value = $"{d.Year}-{d.Month:D2}",
+            Label = new DateTime(d.Year, d.Month, 1).ToString("MMMM yyyy")
+        }).ToList();
+
+        if (_availablePeriods.Any())
+        {
+            _selectedPeriod = _availablePeriods.First().Value;
+            _selectedPeriodLabel = _availablePeriods.First().Label;
+        }
+        else
+        {
+            var now = DateTime.Now;
+            _selectedPeriod = $"{now.Year}-{now.Month:D2}";
+            _selectedPeriodLabel = now.ToString("MMMM yyyy");
+            _availablePeriods.Add(new PeriodOption { Value = _selectedPeriod, Label = _selectedPeriodLabel });
+        }
+    }
+
+    private async Task OnPeriodChanged(ChangeEventArgs e)
+    {
+        _selectedPeriod = e.Value?.ToString() ?? _selectedPeriod;
+        var selectedOpt = _availablePeriods.FirstOrDefault(p => p.Value == _selectedPeriod);
+        if (selectedOpt != null)
+        {
+            _selectedPeriodLabel = selectedOpt.Label;
+        }
+        await LoadDashboardDataAsync();
+    }
+
+    private async Task LoadDashboardDataAsync()
+    {
+        _isLoading = true;
+
+        if (string.IsNullOrEmpty(_selectedPeriod))
+        {
+            _isLoading = false;
+            return;
+        }
+
+        var profile = await DbContext.GamificationProfiles.FirstOrDefaultAsync();
+        if (profile != null)
+        {
+            _totalPoints = profile.TotalPoints;
+        }
+
+        var parts = _selectedPeriod.Split('-');
+        int year = int.Parse(parts[0]);
+        int month = int.Parse(parts[1]);
+
+        var startOfMonth = new DateTime(year, month, 1);
+        var endOfMonth = startOfMonth.AddMonths(1).AddDays(-1);
+
+        var periodTransactions = await DbContext.Transactions
+                    .Where(t => t.Date >= startOfMonth && t.Date <= endOfMonth && !t.IsSplit)
+                    .ToListAsync();
+
+        _monthlyIncome = periodTransactions
+            .Where(t => t.Type == "Income")
+            .Sum(t => t.Amount);
+
+        _monthlyExpenses = periodTransactions
+            .Where(t => t.Type == "Expense" && t.Type != "Transfer")
+            .Sum(t => t.Amount);
+
+        var fixedCategories = await DbContext.CategoryConfigs
+            .Where(c => c.IsFixedBill)
+            .Select(c => c.Name)
+            .ToListAsync();
+
+        var twoMonthsAgo = startOfMonth.AddMonths(-2);
+        var historicalFixedTxns = await DbContext.Transactions
+            .Where(t => t.Date >= twoMonthsAgo && t.Date < startOfMonth && t.Type == "Expense" && fixedCategories.Contains(t.Category ?? ""))
+            .GroupBy(t => new { t.Date.Year, t.Date.Month })
+            .Select(g => g.Sum(t => t.Amount))
+            .ToListAsync();
+
+        decimal expectedFixedTotal = historicalFixedTxns.Any() ? historicalFixedTxns.Average() : 0;
+
+        _paidFixedBills = periodTransactions
+            .Where(t => t.Type == "Expense" && fixedCategories.Contains(t.Category ?? ""))
+            .Sum(t => t.Amount);
+
+        _remainingExpectedBills = expectedFixedTotal - _paidFixedBills;
+
+        if (_remainingExpectedBills < 0) _remainingExpectedBills = 0;
+
+        _safeToSpend = _monthlyIncome - _monthlyExpenses - _remainingExpectedBills;
+        _netCashFlow = _monthlyIncome - _monthlyExpenses;
+
+        var sixMonthsAgo = startOfMonth.AddMonths(-5);
+
+        var trendTransactions = await DbContext.Transactions
+                    .Where(t => t.Date >= sixMonthsAgo && t.Date <= endOfMonth && !t.IsSplit)
+                    .ToListAsync();
+
+        _cashFlowTrend.Clear();
+
+        for (int i = 5; i >= 0; i--)
+        {
+            var targetMonth = startOfMonth.AddMonths(-i);
+
+            var monthTxns = trendTransactions
+                            .Where(t => t.Date.Year == targetMonth.Year && t.Date.Month == targetMonth.Month)
+                            .ToList();
+
+            _cashFlowTrend.Add(new MonthlyCashFlow
+            {
+                MonthLabel = targetMonth.ToString("MMM"),
+                Income = monthTxns.Where(t => t.Type == "Income").Sum(t => t.Amount),
+                Expense = monthTxns.Where(t => t.Type == "Expense" && t.Type != "Transfer").Sum(t => t.Amount)
+            });
+        }
+
+        _maxCashFlowAmount = _cashFlowTrend.Any()
+            ? _cashFlowTrend.Max(c => Math.Max(c.Income, c.Expense))
+            : 0;
+
+        if (_maxCashFlowAmount == 0) _maxCashFlowAmount = 1;
+
+        _categoryExpenses = periodTransactions
+                    .Where(t => t.Type == "Expense" && t.Type != "Transfer")
+                    .GroupBy(t => string.IsNullOrWhiteSpace(t.Category) ? "Uncategorized" : t.Category)
+                    .OrderByDescending(g => g.Sum(t => t.Amount))
+                    .ToDictionary(g => g.Key, g => g.Sum(t => t.Amount));
+
+        var allBudgets = await DbContext.Budgets
+            .Where(b => b.Period == _selectedPeriod)
+            .ToListAsync();
+
+        int daysInMonth = DateTime.DaysInMonth(year, month);
+        var now = DateTime.Now;
+
+        if (year == now.Year && month == now.Month)
+        {
+            _targetPacePercentage = (decimal)now.Day / daysInMonth;
+        }
+        else if (startOfMonth < now)
+        {
+            _targetPacePercentage = 1.0m;
+        }
+        else
+        {
+            _targetPacePercentage = 0.0m;
+        }
+
+        _budgetTrackers.Clear();
+        foreach (var budget in allBudgets)
+        {
+            decimal spent = _categoryExpenses.ContainsKey(budget.Category)
+                ? _categoryExpenses[budget.Category]
+                : 0m;
+
+            decimal percentSpent = budget.MonthlyLimit > 0 ? spent / budget.MonthlyLimit : 0;
+            string color = "bg-success";
+
+            if (percentSpent > 1.0m)
+            {
+                color = "bg-danger";
+            }
+            else if (percentSpent > _targetPacePercentage + 0.10m)
+            {
+                color = "bg-warning text-dark";
+            }
+
+            _budgetTrackers.Add(new BudgetTracker
+            {
+                Category = budget.Category,
+                Limit = budget.MonthlyLimit,
+                Spent = spent,
+                StatusColor = color
+            });
+        }
+
+        _budgetTrackers = _budgetTrackers.OrderByDescending(b => b.SpentPercentage).ToList();
+
+        var categoryConfigs = await DbContext.CategoryConfigs.ToListAsync();
+        var fixedBillCategories = categoryConfigs
+            .Where(c => c.IsFixedBill)
+            .Select(c => c.Name)
+            .ToHashSet();
+
+        var discretionaryExpenses = periodTransactions
+            .Where(t => t.Type == "Expense"
+                     && t.Type != "Transfer"
+                     && !fixedBillCategories.Contains(t.Category ?? "Uncategorized"))
+            .ToList();
+
+        _weeklySpends = discretionaryExpenses
+            .GroupBy(t => (t.Date.Day - 1) / 7 + 1)
+            .ToDictionary(g => g.Key, g => g.Sum(t => t.Amount));
+
+        int totalWeeks = (int)Math.Ceiling(daysInMonth / 7.0);
+        for (int i = 1; i <= totalWeeks; i++)
+        {
+            if (!_weeklySpends.ContainsKey(i)) _weeklySpends[i] = 0m;
+        }
+
+        _earnedBadges.Clear();
+
+        if (_netCashFlow > 0 && _monthlyExpenses > 0)
+        {
+            _earnedBadges.Add(new Badge
+            {
+                Title = "In the Green",
+                Description = "Positive cash flow this month",
+                Icon = "bi-graph-up-arrow text-success",
+                CssClass = "bg-success bg-opacity-10 border-success"
+            });
+        }
+
+        bool allBudgetsOnTrack = _budgetTrackers.Any() && _budgetTrackers.All(b => b.StatusColor == "bg-success");
+        if (allBudgetsOnTrack)
+        {
+            _earnedBadges.Add(new Badge
+            {
+                Title = "Pacing Champion",
+                Description = "100% of budgets are on track",
+                Icon = "bi-trophy-fill text-warning",
+                CssClass = "bg-warning bg-opacity-10 border-warning"
+            });
+        }
+
+        var daysWithExpenses = discretionaryExpenses
+            .Select(t => t.Date.Day)
+            .Distinct()
+            .Count();
+
+        int daysPassed = (year == now.Year && month == now.Month) ? now.Day : daysInMonth;
+        int zeroSpendDays = daysPassed - daysWithExpenses;
+
+        if (zeroSpendDays >= 5)
+        {
+            _earnedBadges.Add(new Badge
+            {
+                Title = "Frugal Master",
+                Description = $"{zeroSpendDays} zero-spend days",
+                Icon = "bi-shield-check text-primary",
+                CssClass = "bg-primary bg-opacity-10 border-primary"
+            });
+        }
+
+        _insights = await InsightService.GenerateInsightsAsync(_selectedPeriod);
+        _currentInsightIndex = 0;
+
+        await GamificationEngine.EvaluateAchievementsAsync();
+        _isLoading = false;
+    }
+
+    private void NextInsight()
+    {
+        if (_insights.Any())
+        {
+            _currentInsightIndex = (_currentInsightIndex + 1) % _insights.Count;
+        }
+    }
+
+    private void PreviousInsight()
+    {
+        if (_insights.Any())
+        {
+            _currentInsightIndex = (_currentInsightIndex - 1 + _insights.Count) % _insights.Count;
+        }
+    }
+
+    private class PeriodOption
+    {
+        public string Value { get; set; } = string.Empty;
+        public string Label { get; set; } = string.Empty;
+    }
+}

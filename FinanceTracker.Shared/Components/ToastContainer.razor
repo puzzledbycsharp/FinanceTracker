@@ -1,0 +1,79 @@
+﻿@using FinanceTracker.Shared.Services
+@inject ToastService ToastService
+@implements IDisposable
+
+<div class="toast-container position-fixed top-0 end-0 p-3 mt-5" style="z-index: 1055;">
+    @foreach (var toast in _toasts)
+    {
+        <div class="toast show align-items-center text-white bg-success border-0 mb-2 shadow-lg"
+             style="animation: slideInRight 0.3s ease-out;" role="alert">
+            <div class="d-flex">
+                <div class="toast-body d-flex align-items-center gap-3">
+                    <div class="bg-white text-success rounded-circle d-flex align-items-center justify-content-center shadow-sm" style="width: 40px; height: 40px;">
+                        <i class="bi @toast.Icon fs-4"></i>
+                    </div>
+                    <div>
+                        <strong class="d-block fs-6">@toast.Title</strong>
+                        <small class="opacity-75">@toast.Message</small>
+                    </div>
+                    <span class="badge bg-warning text-dark ms-3 shadow-sm border border-light">
+                        +@toast.Points Pts
+                    </span>
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" @onclick="() => RemoveToast(toast.Id)"></button>
+            </div>
+        </div>
+    }
+</div>
+
+<style>
+    @@keyframes slideInRight {
+        from {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+</style>
+
+@code {
+    private List<ToastMessage> _toasts = new();
+
+    protected override void OnInitialized()
+    {
+        ToastService.OnShow += AddToast;
+        ToastService.OnHide += RemoveToast;
+    }
+
+    private void AddToast(ToastMessage toast)
+    {
+        InvokeAsync(() =>
+        {
+            _toasts.Add(toast);
+            StateHasChanged();
+        });
+    }
+
+    private void RemoveToast(Guid id)
+    {
+        InvokeAsync(() =>
+        {
+            var toast = _toasts.FirstOrDefault(t => t.Id == id);
+            if (toast != null)
+            {
+                _toasts.Remove(toast);
+                StateHasChanged();
+            }
+        });
+    }
+
+    public void Dispose()
+    {
+        ToastService.OnShow -= AddToast;
+        ToastService.OnHide -= RemoveToast;
+    }
+}

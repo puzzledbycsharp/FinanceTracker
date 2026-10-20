@@ -1,0 +1,147 @@
+﻿@page "/settings"
+@rendermode InteractiveServer
+@using FinanceTracker.Shared.Models
+@using FinanceTracker.Shared.Data
+@using Microsoft.EntityFrameworkCore
+@inject FinanceDbContext DbContext
+
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Settings & Categories</h2>
+    </div>
+
+    <div class="row">
+        <!-- Add New Category Form -->
+        <div class="col-md-4 mb-4">
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">Add New Category</div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label">Category Name</label>
+                        <input type="text" class="form-control" @bind="_newName" placeholder="e.g., Pet Care" />
+                    </div>
+                    <div class="mb-3 d-flex align-items-center gap-3">
+                        <label class="form-label mb-0">Color</label>
+                        <input type="color" class="form-control form-control-color" @bind="_newColor" title="Choose your color">
+                    </div>
+                    <div class="form-check form-switch mb-4">
+                        <input class="form-check-input" type="checkbox" role="switch" id="fixedBillSwitch" @bind="_newIsFixedBill">
+                        <label class="form-check-label" for="fixedBillSwitch">
+                            <strong>Is Fixed Bill?</strong>
+                            <small class="d-block text-muted">Exclude from weekly discretionary spend tracking.</small>
+                        </label>
+                    </div>
+                    <button class="btn btn-primary w-100" @onclick="AddCategoryAsync" disabled="@string.IsNullOrWhiteSpace(_newName)">
+                        Add Category
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Manage Existing Categories -->
+        <div class="col-md-8">
+            <div class="card shadow-sm">
+                <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                    <span class="mb-0">Active Categories</span>
+                    <span class="badge bg-secondary rounded-pill">@_categories.Count Total</span>
+                </div>
+                <div class="card-body p-0">
+                    <ul class="list-group list-group-flush">
+                        @foreach (var cat in _categories.OrderByDescending(c => c.IsFixedBill).ThenBy(c => c.Name))
+                        {
+                            <li class="list-group-item d-flex justify-content-between align-items-center py-3">
+                                <div class="d-flex align-items-center gap-3">
+                                    <div style="width: 20px; height: 20px; border-radius: 4px; background-color: @cat.HexColor;"></div>
+                                    <span class="fw-bold">@cat.Name</span>
+
+                                    @if (cat.IsFixedBill)
+                                    {
+                                        <span class="badge bg-light text-secondary border"><i class="bi bi-lock-fill"></i> Fixed Bill</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-light text-success border"><i class="bi bi-wallet2"></i> Discretionary</span>
+                                    }
+                                </div>
+                                <div class="d-flex align-items-center gap-3">
+                                    <div class="form-check form-switch m-0">
+                                        <input class="form-check-input" type="checkbox" role="switch"
+                                               checked="@cat.IsFixedBill"
+                                               @onchange="@(e => ToggleFixedBillAsync(cat, (bool)(e.Value ?? false)))"
+                                               title="Toggle Fixed Bill Status">
+                                    </div>
+                                    <button class="btn btn-sm btn-outline-danger border-0" @onclick="() => DeleteCategoryAsync(cat)" title="Delete Category">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            </li>
+                        }
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<CategoryConfig> _categories = new();
+
+    // Form States
+    private string _newName = string.Empty;
+    private string _newColor = "#0d6efd"; // Default Bootstrap Blue
+    private bool _newIsFixedBill = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCategoriesAsync();
+    }
+
+    private async Task LoadCategoriesAsync()
+    {
+        _categories = await DbContext.CategoryConfigs.ToListAsync();
+    }
+
+    private async Task AddCategoryAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_newName)) return;
+
+        // Prevent duplicates
+        if (_categories.Any(c => c.Name.Equals(_newName, StringComparison.OrdinalIgnoreCase)))
+            return;
+
+        var newCat = new CategoryConfig
+        {
+            Id = Guid.NewGuid(),
+            Name = _newName.Trim(),
+            HexColor = _newColor,
+            IsFixedBill = _newIsFixedBill
+        };
+
+        await DbContext.CategoryConfigs.AddAsync(newCat);
+        await DbContext.SaveChangesAsync();
+
+        // Reset form
+        _newName = string.Empty;
+        _newIsFixedBill = false;
+        _newColor = "#0d6efd";
+
+        await LoadCategoriesAsync();
+    }
+
+    private async Task ToggleFixedBillAsync(CategoryConfig cat, bool isFixed)
+    {
+        cat.IsFixedBill = isFixed;
+        DbContext.CategoryConfigs.Update(cat);
+        await DbContext.SaveChangesAsync();
+        await LoadCategoriesAsync();
+    }
+
+    private async Task DeleteCategoryAsync(CategoryConfig cat)
+    {
+        // Note: In a production app, you might want to warn the user or re-assign
+        // existing transactions that use this category to "Uncategorized".
+        DbContext.CategoryConfigs.Remove(cat);
+        await DbContext.SaveChangesAsync();
+        await LoadCategoriesAsync();
+    }
+}

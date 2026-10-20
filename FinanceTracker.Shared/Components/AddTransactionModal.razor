@@ -1,0 +1,132 @@
+﻿@using FinanceTracker.Shared.Models
+@using FinanceTracker.Shared.Services
+@using FinanceTracker.Shared.Data
+@using Microsoft.EntityFrameworkCore
+@inject TransactionService TxnService
+@inject FinanceDbContext DbContext
+@inject NavigationManager NavManager
+
+@if (IsVisible)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content shadow-lg">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title"><i class="bi bi-plus-circle me-2"></i>Add Transaction</h5>
+                    <button type="button" class="btn-close btn-close-white" aria-label="Close" @onclick="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label text-muted small fw-bold">Date</label>
+                        <input type="date" class="form-control" @bind="_newTxn.Date" />
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-6">
+                            <label class="form-label text-muted small fw-bold">Type</label>
+                            <select class="form-select" @bind="_newTxn.Type">
+                                <option value="Expense">Expense</option>
+                                <option value="Income">Income</option>
+                                <option value="Transfer">Transfer</option>
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label text-muted small fw-bold">Amount</label>
+                            <div class="input-group">
+                                <span class="input-group-text">$</span>
+                                <input type="number" step="0.01" class="form-control" @bind="_newTxn.Amount" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label text-muted small fw-bold">Description (Merchant)</label>
+                        <input type="text" class="form-control" @bind="_newTxn.OriginalDescription" placeholder="e.g., Target, Safeway, Comcast" />
+                    </div>
+
+                    <!-- NEW: Side-by-side Category and Profile selectors -->
+                    <div class="row mb-3">
+                        <div class="col-6">
+                            <label class="form-label text-muted small fw-bold">Category</label>
+                            <select class="form-select" @bind="_newTxn.Category">
+                                <option value="">-- Select Category --</option>
+                                @foreach (var cat in _categories)
+                                {
+                                    <option value="@cat">@cat</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label text-muted small fw-bold">Profile (Spender)</label>
+                            <select class="form-select" @bind="_newTxn.UserProfileId">
+                                <option value="">-- Shared / Unassigned --</option>
+                                @foreach (var profile in _profiles)
+                                {
+                                    <option value="@profile.Id">@profile.Name</option>
+                                }
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-outline-secondary" @onclick="Close">Cancel</button>
+                    <button type="button" class="btn btn-primary" @onclick="SaveTransactionAsync" disabled="@IsSaveDisabled">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    public bool IsVisible { get; private set; } = false;
+    private Transaction _newTxn = new();
+    private List<string> _categories = new();
+    private List<UserProfile> _profiles = new(); // NEW: Profile list
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Load active categories for the dropdown
+        _categories = await DbContext.CategoryConfigs
+            .Select(c => c.Name)
+            .OrderBy(n => n)
+            .ToListAsync();
+
+        // NEW: Load profiles
+        _profiles = await DbContext.UserProfiles.ToListAsync();
+    }
+
+    public void Open()
+    {
+        // Reset the form every time it opens
+        _newTxn = new Transaction
+        {
+            Date = DateTime.Today,
+            Type = "Expense",
+            Source = "Manual",
+            Amount = 0,
+            UserProfileId = null // Default to Shared/Unassigned
+        };
+        IsVisible = true;
+        StateHasChanged();
+    }
+
+    public void Close()
+    {
+        IsVisible = false;
+        StateHasChanged();
+    }
+
+    private bool IsSaveDisabled => _newTxn.Amount <= 0 || string.IsNullOrWhiteSpace(_newTxn.OriginalDescription);
+
+    private async Task SaveTransactionAsync()
+    {
+        _newTxn.CleanedDescription = _newTxn.OriginalDescription?.Trim();
+
+        await TxnService.AddTransactionAsync(_newTxn);
+
+        Close();
+
+        // Force reload the current page so the new transaction reflects immediately
+        NavManager.NavigateTo(NavManager.Uri, forceLoad: true);
+    }
+}

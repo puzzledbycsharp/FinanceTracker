@@ -1,0 +1,44 @@
+﻿@inherits LayoutComponentBase
+
+<div class="page">
+    <div class="sidebar">
+        <NavMenu />
+    </div>
+
+    <main>
+        <div class="top-row px-4">
+            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
+        </div>
+
+        <article class="content px-4">
+            @Body
+        </article>
+    </main>
+</div>
+
+<!-- Gamification Toast Popups -->
+<FinanceTracker.Shared.Components.ToastContainer />
+<!-- 1. The Global Modal Component -->
+<FinanceTracker.Shared.Components.AddTransactionModal @ref="_addModal" />
+
+<!-- 2. The Floating Action Button (FAB) -->
+<button class="btn btn-primary shadow rounded-circle d-flex align-items-center justify-content-center"
+        style="position: fixed; bottom: 30px; right: 30px; width: 60px; height: 60px; z-index: 1000;"
+        @onclick="OpenAddModal">
+    <span style="font-size: 2rem; font-weight: 500; line-height: 1; margin-bottom: 4px;">+</span>
+</button>
+
+<div id="blazor-error-ui" data-nosnippet>
+    An unhandled error has occurred.
+    <a href="." class="reload">Reload</a>
+    <span class="dismiss">🗙</span>
+</div>
+@code {
+    // Hold a reference to the component so we can call its Open() method
+    private FinanceTracker.Shared.Components.AddTransactionModal _addModal = default!;
+
+    private void OpenAddModal()
+    {
+        _addModal.Open();
+    }
+}

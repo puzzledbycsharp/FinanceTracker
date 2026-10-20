@@ -1,0 +1,132 @@
+﻿@page "/import"
+@rendermode InteractiveServer
+@using System.Net.Http.Json
+@using FinanceTracker.Shared.Models
+@using FinanceTracker.Shared.Data
+@using FinanceTracker.Shared.Services
+@using FinanceTracker.Web.Client.Services
+@using Microsoft.EntityFrameworkCore
+@inject HttpClient Http
+@inject ICsvParserService CsvParser
+@inject CategoryMemoryService MemoryService
+@inject FinanceDbContext DbContext
+
+<div class="container mt-4">
+    <h2>Data Ingestion Hub</h2>
+    <p>Select the target account, then drag and drop your Chase CSVs or M&T PDFs here.</p>
+
+    <!-- NEW ACCOUNT SELECTOR -->
+    <div class="mb-3 w-50">
+        <label class="form-label fw-bold">Target Account</label>
+        <select @bind="_selectedAccount" class="form-select">
+            <option value="Chase Amazon Visa">Chase Amazon Visa</option>
+            <option value="M&T Checking">M&T Checking</option>
+            <option value="Joint Savings">Joint Savings</option>
+        </select>
+    </div>
+
+    <div class="card p-4 text-center border-dashed mb-4">
+        <InputFile OnChange="@HandleFilesSelected" multiple class="form-control-file" accept=".csv, .pdf" />
+    </div>
+
+    @if (_isProcessing)
+    {
+        <div class="alert alert-info">Processing your files... Please wait.</div>
+    }
+
+    @if (_importResults.Any())
+    {
+        <div class="alert alert-success">
+            <ul>
+                @foreach (var result in _importResults)
+                {
+                    <li>@result</li>
+                }
+            </ul>
+        </div>
+    }
+</div>
+
+@code {
+    private bool _isProcessing;
+    private List<string> _importResults = new();
+
+    // Set a default selected account
+    private string _selectedAccount = "Chase Amazon Visa";
+
+    private async Task HandleFilesSelected(InputFileChangeEventArgs e)
+    {
+        _isProcessing = true;
+        _importResults.Clear();
+
+        var existingHashes = await DbContext.Transactions.Select(t => t.UniqueHash).ToListAsync();
+        int totalImported = 0;
+        int totalDuplicates = 0;
+
+        foreach (var file in e.GetMultipleFiles())
+        {
+            var transactions = new List<Transaction>();
+
+            // 1. Read file stream (Max size set to 10MB)
+            using var stream = file.OpenReadStream(10485760);
+            using var memoryStream = new MemoryStream();
+            await stream.CopyToAsync(memoryStream);
+            memoryStream.Position = 0;
+
+            // 2. Route to the correct parser based on extension
+            if (file.Name.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
+            {
+                string institution = file.Name.Contains("Chase", StringComparison.OrdinalIgnoreCase) ? "Chase" : "M&T";
+                transactions = await CsvParser.ParseCsvAsync(memoryStream, institution);
+            }
+            else if (file.Name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
+            {
+                // Send the PDF to the server because WebAssembly cannot process MD5 encryption natively
+                using var content = new MultipartFormDataContent();
+                var fileContent = new StreamContent(memoryStream);
+                content.Add(fileContent, "file", file.Name);
+
+                var response = await Http.PostAsync("/api/extract-pdf", content);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    transactions = await response.Content.ReadFromJsonAsync<List<Transaction>>() ?? new();
+                }
+                else
+                {
+                    _importResults.Add($"Failed to process PDF {file.Name}. Server returned an error.");
+                }
+            }
+
+            // 3. Filter duplicates using the UniqueHash
+            var newTransactions = transactions.Where(t => !existingHashes.Contains(t.UniqueHash)).ToList();
+
+            // 4. Tag Accounts, Categorize, and Save
+            if (newTransactions.Any())
+            {
+                // Tag all new transactions with the selected account
+                foreach (var tx in newTransactions)
+                {
+                    tx.Account = _selectedAccount;
+                }
+
+                await MemoryService.ApplyCategoriesAsync(newTransactions); // Categorize before saving
+                await DbContext.Transactions.AddRangeAsync(newTransactions);
+                existingHashes.AddRange(newTransactions.Select(t => t.UniqueHash));
+            }
+
+            totalImported += newTransactions.Count;
+            totalDuplicates += (transactions.Count - newTransactions.Count);
+
+            _importResults.Add($"Processed {file.Name} into {_selectedAccount}: {newTransactions.Count} added & categorized, {transactions.Count - newTransactions.Count} skipped as duplicates.");
+        }
+
+        // 5. Save everything to SQLite
+        if (totalImported > 0)
+        {
+            await DbContext.SaveChangesAsync();
+        }
+
+        _isProcessing = false;
+    }
+}

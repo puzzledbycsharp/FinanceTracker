@@ -1,0 +1,193 @@
+﻿@page "/budgets"
+@rendermode InteractiveServer
+@using FinanceTracker.Shared.Models
+@using FinanceTracker.Shared.Data
+@using Microsoft.EntityFrameworkCore
+@inject FinanceDbContext DbContext
+
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Budget Manager</h2>
+
+        <div class="d-flex align-items-center gap-2">
+            <label class="fw-bold text-secondary mb-0">Period:</label>
+            <select class="form-select w-auto" @bind="_selectedPeriod" @bind:after="LoadBudgetsAsync">
+                @foreach (var p in _availablePeriods)
+                {
+                    <option value="@p.Value">@p.Label</option>
+                }
+            </select>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Add New Budget Form -->
+        <div class="col-md-4 mb-4">
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">Add/Update Budget</div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label">Category</label>
+                        <select class="form-select" @bind="_newCategory">
+                            <option value="">-- Select Category --</option>
+                            @foreach (var cat in _availableCategories)
+                            {
+                                <option value="@cat">@cat</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Monthly Limit ($)</label>
+                        <input type="number" class="form-control" @bind="_newLimit" />
+                    </div>
+                    <button class="btn btn-primary w-100" @onclick="SaveBudgetAsync" disabled="@(string.IsNullOrEmpty(_newCategory) || _newLimit <= 0)">
+                        Save Budget for @_selectedPeriodLabel
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Current Budgets List -->
+        <div class="col-md-8">
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">Active Budgets (@_selectedPeriodLabel)</div>
+                <div class="card-body p-0">
+                    @if (!_budgets.Any())
+                    {
+                        <div class="p-4 text-center text-muted">
+                            <p>No budgets set for this month.</p>
+                            <button class="btn btn-outline-secondary btn-sm" @onclick="CopyPreviousMonthBudgetsAsync">
+                                <i class="bi bi-files"></i> Copy from Previous Month
+                            </button>
+                        </div>
+                    }
+                    else
+                    {
+                        <ul class="list-group list-group-flush">
+                            @foreach (var budget in _budgets)
+                            {
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <strong>@budget.Category</strong>
+                                    <div>
+                                        <span class="badge bg-primary rounded-pill me-3 fs-6">@budget.MonthlyLimit.ToString("C")</span>
+                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteBudgetAsync(budget)">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </li>
+                            }
+                        </ul>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<Budget> _budgets = new();
+    private List<PeriodOption> _availablePeriods = new();
+    private string _selectedPeriod = string.Empty;
+
+    private string _newCategory = string.Empty;
+    private decimal _newLimit;
+
+    private List<string> _availableCategories = new();
+
+    private string _selectedPeriodLabel => _availablePeriods.FirstOrDefault(p => p.Value == _selectedPeriod)?.Label ?? "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Load the dynamic categories
+        _availableCategories = await DbContext.CategoryConfigs
+            .Select(c => c.Name)
+            .OrderBy(n => n)
+            .ToListAsync();
+
+        // Generate the last 12 months and next 12 months for the dropdown
+        var current = DateTime.Now.AddMonths(-12);
+        for (int i = 0; i < 24; i++)
+        {
+            _availablePeriods.Insert(0, new PeriodOption
+            {
+                Value = $"{current.Year}-{current.Month:D2}",
+                Label = current.ToString("MMMM yyyy")
+            });
+            current = current.AddMonths(1);
+        }
+
+        _selectedPeriod = $"{DateTime.Now.Year}-{DateTime.Now.Month:D2}";
+        await LoadBudgetsAsync();
+    }
+
+    private async Task LoadBudgetsAsync()
+    {
+        _budgets = await DbContext.Budgets
+            .Where(b => b.Period == _selectedPeriod)
+            .OrderBy(b => b.Category)
+            .ToListAsync();
+    }
+
+    private async Task SaveBudgetAsync()
+    {
+        var existing = _budgets.FirstOrDefault(b => b.Category == _newCategory);
+        if (existing != null)
+        {
+            existing.MonthlyLimit = _newLimit;
+            DbContext.Budgets.Update(existing);
+        }
+        else
+        {
+            var newBudget = new Budget
+            {
+                Id = Guid.NewGuid(),
+                Category = _newCategory,
+                MonthlyLimit = _newLimit,
+                Period = _selectedPeriod
+            };
+            await DbContext.Budgets.AddAsync(newBudget);
+        }
+
+        await DbContext.SaveChangesAsync();
+        _newCategory = string.Empty;
+        _newLimit = 0;
+        await LoadBudgetsAsync();
+    }
+
+    private async Task DeleteBudgetAsync(Budget budget)
+    {
+        DbContext.Budgets.Remove(budget);
+        await DbContext.SaveChangesAsync();
+        await LoadBudgetsAsync();
+    }
+
+    private async Task CopyPreviousMonthBudgetsAsync()
+    {
+        var parts = _selectedPeriod.Split('-');
+        var currentDate = new DateTime(int.Parse(parts[0]), int.Parse(parts[1]), 1);
+        var prevDate = currentDate.AddMonths(-1);
+        var prevPeriod = $"{prevDate.Year}-{prevDate.Month:D2}";
+
+        var previousBudgets = await DbContext.Budgets.Where(b => b.Period == prevPeriod).ToListAsync();
+
+        foreach (var pb in previousBudgets)
+        {
+            await DbContext.Budgets.AddAsync(new Budget
+            {
+                Id = Guid.NewGuid(),
+                Category = pb.Category,
+                MonthlyLimit = pb.MonthlyLimit,
+                Period = _selectedPeriod
+            });
+        }
+
+        await DbContext.SaveChangesAsync();
+        await LoadBudgetsAsync();
+    }
+
+    private class PeriodOption
+    {
+        public string Value { get; set; } = string.Empty;
+        public string Label { get; set; } = string.Empty;
+    }
+}

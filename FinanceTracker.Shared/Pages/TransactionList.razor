@@ -1,0 +1,328 @@
+﻿@page "/transactions"
+@rendermode InteractiveServer
+@using FinanceTracker.Shared.Models
+@using FinanceTracker.Shared.Data
+@using FinanceTracker.Shared.Services
+@using Microsoft.EntityFrameworkCore
+@inject FinanceDbContext DbContext
+@inject CategoryMemoryService MemoryService
+@inject NavigationManager Navigation
+
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2>Transaction Manager</h2>
+        <div>
+            @if (!string.IsNullOrEmpty(Category) || !string.IsNullOrEmpty(Period) || !string.IsNullOrEmpty(Type) || Week.HasValue)
+            {
+                <button class="btn btn-outline-secondary me-2" @onclick="ClearFilters">
+                    <i class="bi bi-x-circle"></i> Clear Filters
+                </button>
+            }
+            <button class="btn btn-outline-primary" @onclick="LoadTransactionsAsync">
+                <i class="bi bi-arrow-clockwise"></i> Refresh
+            </button>
+        </div>
+    </div>
+
+    @if (_isLoading)
+    {
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+    }
+    else if (!_transactions.Any())
+    {
+        <div class="alert alert-info">No transactions found. Go import some data!</div>
+    }
+    else
+    {
+        <div class="table-responsive pb-5">
+            <table class="table table-hover align-middle shadow-sm">
+                <thead class="table-light">
+                    <tr>
+                        <th>Date</th>
+                        <th>Account</th>
+                        <th>Description</th>
+                        <th>Amount</th>
+                        <th>Category</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var txn in _transactions)
+                    {
+                        <!-- Highlight parent rows as disabled, indent children -->
+                        <tr class="@(txn.IsSplit ? "table-light text-muted" : "") @(txn.ParentTransactionId != null ? "bg-light" : "")">
+                            <td>@txn.Date.ToShortDateString()</td>
+
+                            <td>
+                                <span class="badge bg-light text-dark border">@txn.Account</span>
+                            </td>
+
+                            <td class="@(txn.ParentTransactionId != null ? "ps-4 border-start border-3 border-secondary" : "")">
+                                @if (txn.ParentTransactionId != null)
+                                {
+                                    <i class="bi bi-arrow-return-right text-muted me-1"></i>
+                                }
+                                <span title="@txn.OriginalDescription">
+                                    @(txn.IsSplit ? $"[SPLIT] {txn.CleanedDescription}" : txn.CleanedDescription)
+                                </span>
+                            </td>
+
+                            <td class="@(txn.IsSplit ? "text-decoration-line-through" : "")">
+                                @txn.Amount.ToString("C")
+                            </td>
+
+                            <td>
+                                @if (txn.IsSplit)
+                                {
+                                    <span class="text-muted fst-italic">Split into multiple</span>
+                                }
+                                else
+                                {
+                                    <select class="form-select form-select-sm"
+                                            value="@txn.Category"
+                                            @onchange="@(e => UpdateCategoryAsync(txn, e.Value?.ToString()))">
+                                        <option value="">Uncategorized</option>
+                                        @foreach (var cat in _availableCategories)
+                                        {
+                                            <option value="@cat">@cat</option>
+                                        }
+                                    </select>
+                                }
+                            </td>
+                            <td>
+                                @if (!txn.IsSplit && txn.ParentTransactionId == null && txn.Type == "Expense")
+                                {
+                                    <button class="btn btn-sm btn-outline-secondary" @onclick="() => OpenSplitModal(txn)" title="Split Transaction">
+                                        <i class="bi bi-scissors"></i>
+                                    </button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+<!-- SPLIT MODAL OVERLAY -->
+@if (_showSplitModal && _transactionToSplit != null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.6);">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-light">
+                    <h5 class="modal-title">Split Transaction</h5>
+                    <button type="button" class="btn-close" @onclick="CloseSplitModal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-secondary d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>Original:</strong> @_transactionToSplit.CleanedDescription <br />
+                            <strong>Account:</strong> @_transactionToSplit.Account
+                        </div>
+                        <div class="text-end">
+                            <strong class="fs-5">@_transactionToSplit.Amount.ToString("C")</strong>
+                        </div>
+                    </div>
+
+                    <table class="table table-sm mt-3">
+                        <thead>
+                            <tr>
+                                <th>Category</th>
+                                <th>Amount ($)</th>
+                                <th>Note (Optional)</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var split in _splitItems)
+                            {
+                                <tr>
+                                    <td>
+                                        <select class="form-select form-select-sm" @bind="split.Category">
+                                            <option value="">Select...</option>
+                                            @foreach (var cat in _availableCategories)
+                                            {
+                                                <option value="@cat">@cat</option>
+                                            }
+                                        </select>
+                                    </td>
+                                    <td>
+                                        <input type="number" class="form-control form-control-sm" @bind="split.Amount" step="0.01" />
+                                    </td>
+                                    <td>
+                                        <input type="text" class="form-control form-control-sm" @bind="split.Description" placeholder="e.g., Groceries" />
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => _splitItems.Remove(split)"><i class="bi bi-trash"></i></button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+
+                    <button class="btn btn-sm btn-outline-primary mt-2" @onclick="AddSplitRow">
+                        <i class="bi bi-plus-circle"></i> Add Split
+                    </button>
+
+                    <div class="mt-4 pt-3 border-top d-flex justify-content-between align-items-center">
+                        @{
+                            decimal totalSplit = _splitItems.Sum(s => s.Amount);
+                            decimal remaining = _transactionToSplit.Amount - totalSplit;
+                        }
+                        <h6 class="mb-0 @(remaining == 0 ? "text-success" : "text-danger")">
+                            Remaining to assign: <strong>@remaining.ToString("C")</strong>
+                        </h6>
+                        <div>
+                            <button class="btn btn-secondary me-2" @onclick="CloseSplitModal">Cancel</button>
+                            <button class="btn btn-success" @onclick="SaveSplitAsync" disabled="@(remaining != 0 || _splitItems.Any(s => string.IsNullOrEmpty(s.Category)))">
+                                Save Splits
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [SupplyParameterFromQuery] public string? Category { get; set; }
+    [SupplyParameterFromQuery] public string? Period { get; set; }
+    [SupplyParameterFromQuery] public string? Type { get; set; }
+    [SupplyParameterFromQuery] public int? Week { get; set; }
+    [SupplyParameterFromQuery] public decimal? MaxAmount { get; set; } // NEW PARAMETER
+
+    private bool _isLoading = true;
+    private List<Transaction> _transactions = new();
+    private List<string> _availableCategories = new();
+
+    // Modal State
+    private bool _showSplitModal = false;
+    private Transaction? _transactionToSplit;
+    private List<SplitItem> _splitItems = new();
+
+    private class SplitItem
+    {
+        public decimal Amount { get; set; }
+        public string Category { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _availableCategories = await DbContext.CategoryConfigs.Select(c => c.Name).OrderBy(n => n).ToListAsync();
+        await LoadTransactionsAsync();
+    }
+
+    protected override async Task OnParametersSetAsync() => await LoadTransactionsAsync();
+
+    private async Task LoadTransactionsAsync()
+    {
+        _isLoading = true;
+        var query = DbContext.Transactions.AsQueryable();
+
+        if (!string.IsNullOrEmpty(Period))
+        {
+            var parts = Period.Split('-');
+            if (parts.Length == 2 && int.TryParse(parts[0], out int year) && int.TryParse(parts[1], out int month))
+            {
+                query = query.Where(t => t.Date.Year == year && t.Date.Month == month);
+                if (Week.HasValue)
+                {
+                    int startDay = (Week.Value - 1) * 7 + 1;
+                    int endDay = Math.Min(Week.Value * 7, DateTime.DaysInMonth(year, month));
+                    query = query.Where(t => t.Date.Day >= startDay && t.Date.Day <= endDay);
+                }
+            }
+        }
+
+        if (!string.IsNullOrEmpty(Type)) query = query.Where(t => t.Type == Type);
+
+        if (!string.IsNullOrEmpty(Category))
+        {
+            query = Category == "Uncategorized"
+                ? query.Where(t => string.IsNullOrEmpty(t.Category) || t.Category == "Uncategorized")
+                : query.Where(t => t.Category == Category);
+        }
+
+        if (MaxAmount.HasValue)
+        {
+            query = query.Where(t => t.Amount <= MaxAmount.Value);
+        }
+
+        // Order by Date descending. Children naturally follow their parent because they share the exact same Date.
+        _transactions = await query.OrderByDescending(t => t.Date).ThenBy(t => t.Id).ToListAsync();
+        _isLoading = false;
+    }
+
+    private void ClearFilters() => Navigation.NavigateTo("/transactions");
+
+    private async Task UpdateCategoryAsync(Transaction txn, string? newCategory)
+    {
+        if (string.IsNullOrWhiteSpace(newCategory)) return;
+        txn.Category = newCategory;
+        DbContext.Transactions.Update(txn);
+        await DbContext.SaveChangesAsync();
+        await MemoryService.LearnCategoryAsync(txn.CleanedDescription, newCategory);
+    }
+
+    // --- SPLIT MODAL LOGIC ---
+    private void OpenSplitModal(Transaction txn)
+    {
+        _transactionToSplit = txn;
+        _splitItems.Clear();
+        // Pre-fill two empty rows to start
+        _splitItems.Add(new SplitItem());
+        _splitItems.Add(new SplitItem());
+        _showSplitModal = true;
+    }
+
+    private void CloseSplitModal()
+    {
+        _showSplitModal = false;
+        _transactionToSplit = null;
+    }
+
+    private void AddSplitRow() => _splitItems.Add(new SplitItem());
+
+    private async Task SaveSplitAsync()
+    {
+        if (_transactionToSplit == null) return;
+
+        // 1. Mark original as split
+        _transactionToSplit.IsSplit = true;
+        _transactionToSplit.Category = "Split";
+        DbContext.Transactions.Update(_transactionToSplit);
+
+        // 2. Create the child transactions
+        foreach (var split in _splitItems)
+        {
+            var childTxn = new Transaction
+            {
+                Id = Guid.NewGuid(),
+                Account = _transactionToSplit.Account,
+                Date = _transactionToSplit.Date,
+                Type = _transactionToSplit.Type,
+                Amount = split.Amount,
+                Category = split.Category,
+                UniqueHash = $"{_transactionToSplit.UniqueHash}-split-{Guid.NewGuid().ToString().Substring(0, 8)}", // Ensures uniqueness
+                OriginalDescription = _transactionToSplit.OriginalDescription,
+                CleanedDescription = string.IsNullOrWhiteSpace(split.Description)
+                    ? _transactionToSplit.CleanedDescription
+                    : $"{_transactionToSplit.CleanedDescription} ({split.Description})",
+                ParentTransactionId = _transactionToSplit.Id // Link to parent
+            };
+
+            await DbContext.Transactions.AddAsync(childTxn);
+            await MemoryService.LearnCategoryAsync(childTxn.CleanedDescription, split.Category); // Train memory
+        }
+
+        await DbContext.SaveChangesAsync();
+        CloseSplitModal();
+        await LoadTransactionsAsync(); // Reload the grid to see the children
+    }
+}
