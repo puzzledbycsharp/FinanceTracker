@@ -32,54 +32,54 @@ namespace FinanceTracker.Shared
                     // INCOME 1: AI Architect at AWS (Bi-weekly)
                     if (fridayCount % 2 == 0)
                     {
-                        transactions.Add(CreateTx(date.AddHours(2), 5850.00m, "Income", "AWS - PAYROLL DIR DEP", "Income", "M&T", "M&T Checking"));
+                        transactions.Add(CreateTx(date.AddHours(2), 5850.00m, "Income", "AWS - PAYROLL DIR DEP", "Income", "M&T", "M&T Checking", null));
                     }
 
                     // INCOME 2: Working Spouse at Inova Health System (Alternate Bi-weekly)
                     if (fridayCount % 2 != 0)
                     {
-                        transactions.Add(CreateTx(date.AddHours(3), 2950.00m, "Income", "INOVA HEALTH DIR DEP", "Income", "M&T", "M&T Checking"));
+                        transactions.Add(CreateTx(date.AddHours(3), 2950.00m, "Income", "INOVA HEALTH DIR DEP", "Income", "M&T", "M&T Checking", null));
                     }
 
-                    // Expense: Zelle for Weekend Teen Babysitter (Every Friday)
-                    transactions.Add(CreateTx(date.AddHours(18), 160.00m, "Expense", "ZELLE TO EMILY (BABYSITTING)", "Childcare", "M&T", "M&T Checking"));
+                    // Expense: Zelle for Weekend Teen Babysitter (Every Friday) - Fixed Bill / Shared Household
+                    transactions.Add(CreateTx(date.AddHours(18), 160.00m, "Expense", "ZELLE TO EMILY (BABYSITTING)", "Childcare", "M&T", "M&T Checking", 1));
                 }
 
-                // 1st of the Month: Housing & Childcare (Scaled for 3 Kids)
+                // 1st of the Month: Housing & Childcare (Scaled for 3 Kids) - Fixed Bills / Shared Household
                 if (date.Day == 1)
                 {
-                    transactions.Add(CreateTx(date.AddHours(1), 3850.00m, "Expense", "CAPITAL ONE MORTGAGE", "Housing", "M&T", "M&T Checking"));
-                    transactions.Add(CreateTx(date.AddHours(8), 2950.00m, "Expense", "PRIMROSE SCHOOL ASHBURN", "Childcare", "M&T", "M&T Checking")); // Heavy daycare cost
+                    transactions.Add(CreateTx(date.AddHours(1), 3850.00m, "Expense", "CAPITAL ONE MORTGAGE", "Housing", "M&T", "M&T Checking", 1));
+                    transactions.Add(CreateTx(date.AddHours(8), 2950.00m, "Expense", "PRIMROSE SCHOOL ASHBURN", "Childcare", "M&T", "M&T Checking", 1)); // Heavy daycare cost
                 }
 
-                // 15th of the Month: Virginia Utilities & Insurance
+                // 15th of the Month: Virginia Utilities & Insurance - Fixed Bills / Shared Household
                 if (date.Day == 15)
                 {
-                    transactions.Add(CreateTx(date.AddHours(3), 245.00m, "Expense", "DOMINION ENERGY", "Utilities", "M&T", "M&T Checking"));
-                    transactions.Add(CreateTx(date.AddHours(4), 115.00m, "Expense", "LOUDOUN WATER", "Utilities", "M&T", "M&T Checking"));
-                    transactions.Add(CreateTx(date.AddHours(5), 185.00m, "Expense", "STATE FARM AUTO INS", "Insurance", "M&T", "M&T Checking"));
+                    transactions.Add(CreateTx(date.AddHours(3), 245.00m, "Expense", "DOMINION ENERGY", "Utilities & Bills", "M&T", "M&T Checking", 1));
+                    transactions.Add(CreateTx(date.AddHours(4), 115.00m, "Expense", "LOUDOUN WATER", "Utilities & Bills", "M&T", "M&T Checking", 1));
+                    transactions.Add(CreateTx(date.AddHours(5), 185.00m, "Expense", "STATE FARM AUTO INS", "Utilities & Bills", "M&T", "M&T Checking", 1));
                 }
 
                 // 25th of the Month: PHYSICAL CHECKS & SAVINGS TRANSFERS
                 if (date.Day == 25)
                 {
-                    transactions.Add(CreateTx(date.AddHours(10), 1200.00m, "Transfer", "ONLINE TRANSFER TO JOINT SAVINGS", "Transfer", "M&T", "M&T Checking"));
-                    transactions.Add(CreateTx(date.AddHours(10), 1200.00m, "Transfer", "ONLINE TRANSFER FROM CHECKING", "Transfer", "M&T", "Joint Savings"));
-                    transactions.Add(CreateTx(date.AddHours(14), 120.00m, "Expense", $"CHECK #{checkNumber++}", "Services", "M&T", "M&T Checking")); // Piano lessons, house cleaner, etc.
+                    transactions.Add(CreateTx(date.AddHours(10), 1200.00m, "Transfer", "ONLINE TRANSFER TO JOINT SAVINGS", "Transfer", "M&T", "M&T Checking", null));
+                    transactions.Add(CreateTx(date.AddHours(10), 1200.00m, "Transfer", "ONLINE TRANSFER FROM CHECKING", "Transfer", "M&T", "Joint Savings", null));
+                    transactions.Add(CreateTx(date.AddHours(14), 120.00m, "Expense", $"CHECK #{checkNumber++}", "Services", "M&T", "M&T Checking", 1)); // Piano lessons, house cleaner, etc.
                 }
 
                 // 28th of the Month: CREDIT CARD AUTO-PAY
                 if (date.Day == 28)
                 {
-                    transactions.Add(CreateTx(date.AddHours(5), 2150.00m, "Transfer", "WEB XFER TO CHASE VISA", "Transfer", "M&T", "M&T Checking"));
-                    transactions.Add(CreateTx(date.AddHours(5), 2150.00m, "Transfer", "PAYMENT THANK YOU - WEB", "Transfer", "Chase", "Chase Amazon Visa"));
+                    transactions.Add(CreateTx(date.AddHours(5), 2150.00m, "Transfer", "WEB XFER TO CHASE VISA", "Transfer", "M&T", "M&T Checking", null));
+                    transactions.Add(CreateTx(date.AddHours(5), 2150.00m, "Transfer", "PAYMENT THANK YOU - WEB", "Transfer", "Chase", "Chase Amazon Visa", null));
                 }
 
-                // Monthly Subscriptions (AI Architect tools & Family entertainment)
-                if (date.Day == 5) transactions.Add(CreateTx(date.AddHours(1), 20.00m, "Expense", "OPENAI SUBSCRIPTION", "AI & Software Tools", "Chase", "Chase Amazon Visa"));
-                if (date.Day == 12) transactions.Add(CreateTx(date.AddHours(2), 15.99m, "Expense", "NETFLIX", "Subscriptions & Streaming", "Chase", "Chase Amazon Visa"));
-                if (date.Day == 18) transactions.Add(CreateTx(date.AddHours(3), 24.99m, "Expense", "DISNEY PLUS FAMILY", "Subscriptions & Streaming", "Chase", "Chase Amazon Visa"));
-                if (date.Day == 21) transactions.Add(CreateTx(date.AddHours(2), 45.00m, "Expense", "GITHUB COPILOT", "AI & Software Tools", "Chase", "Chase Amazon Visa"));
+                // Monthly Subscriptions (AI Architect tools & Family entertainment) - Fixed Bills / Shared Household
+                if (date.Day == 5) transactions.Add(CreateTx(date.AddHours(1), 20.00m, "Expense", "OPENAI SUBSCRIPTION", "AI & Software Tools", "Chase", "Chase Amazon Visa", 1));
+                if (date.Day == 12) transactions.Add(CreateTx(date.AddHours(2), 15.99m, "Expense", "NETFLIX", "Subscriptions & Streaming", "Chase", "Chase Amazon Visa", 1));
+                if (date.Day == 18) transactions.Add(CreateTx(date.AddHours(3), 24.99m, "Expense", "DISNEY PLUS FAMILY", "Subscriptions & Streaming", "Chase", "Chase Amazon Visa", 1));
+                if (date.Day == 21) transactions.Add(CreateTx(date.AddHours(2), 45.00m, "Expense", "GITHUB COPILOT", "AI & Software Tools", "Chase", "Chase Amazon Visa", 1));
             }
 
             // ==========================================
@@ -90,15 +90,16 @@ namespace FinanceTracker.Shared
                 .RuleFor(t => t.Date, f => f.Date.Between(startDate, endDate).Date.AddHours(f.Random.Int(7, 21)).AddMinutes(f.Random.Int(0, 59)))
                 .RuleFor(t => t.Type, "Expense")
                 .RuleFor(t => t.Category, f => f.Random.WeightedRandom(
-                    new[] { "Groceries", "Dining & Coffee", "Gas & Transit", "Shopping", "Kids & Health", "Cash" },
-                    new[] { 0.25f, 0.30f, 0.15f, 0.20f, 0.05f, 0.05f }))
+                    new[] { "Groceries", "Dining & Coffee", "Fast Food", "Gas & Transit", "Shopping", "Health & Fitness", "Cash" },
+                    new[] { 0.22f, 0.22f, 0.15f, 0.15f, 0.15f, 0.06f, 0.05f }))
                 .RuleFor(t => t.OriginalDescription, (f, t) => t.Category switch
                 {
                     "Groceries" => f.PickRandom("WEGMANS ASHBURN", "HARRIS TEETER", "WHOLE FOODS MKT", "TRADER JOES", "TARGET"),
-                    "Dining & Coffee" => f.PickRandom("STARBUCKS", "PEETS COFFEE", "FORDS FISH SHACK", "MATCHBOX ONE LOUDOUN", "SENSE OF THAI", "CHICK-FIL-A"),
+                    "Dining & Coffee" => f.PickRandom("STARBUCKS", "PEETS COFFEE", "FORDS FISH SHACK", "MATCHBOX ONE LOUDOUN", "SENSE OF THAI"),
+                    "Fast Food" => f.PickRandom("CHICK-FIL-A", "SWEETGREEN", "MOD PIZZA", "SHAKE SHACK", "FIVE GUYS", "CAVA", "CHIPOTLE"),
                     "Gas & Transit" => f.PickRandom("WAWA", "SHELL", "EZ PASS VA TOLL", "WMATA SILVER LINE"),
                     "Shopping" => f.PickRandom("AMAZON.COM", "HOME DEPOT", "DULLES TOWN CENTER", "BEST BUY"),
-                    "Kids & Health" => f.PickRandom("INOVA PEDIATRICS", "ASHBURN ICE HOUSE", "LOUDOUN SOCCER", "CVS PHARMACY"),
+                    "Health & Fitness" => f.PickRandom("INOVA PEDIATRICS", "ASHBURN ICE HOUSE", "LOUDOUN SOCCER", "CVS PHARMACY"),
                     "Cash" => f.PickRandom("M&T ATM WITHDRAWAL"),
                     _ => f.Company.CompanyName()
                 })
@@ -107,13 +108,18 @@ namespace FinanceTracker.Shared
                 .RuleFor(t => t.Amount, (f, t) => t.Category switch
                 {
                     "Groceries" => Math.Round(f.Random.Decimal(65m, 320m), 2),
-                    "Dining & Coffee" => Math.Round(f.Random.Decimal(8m, 110m), 2),
+                    "Dining & Coffee" => Math.Round(f.Random.Decimal(15m, 110m), 2),
+                    "Fast Food" => Math.Round(f.Random.Decimal(8m, 45m), 2),
                     "Gas & Transit" => Math.Round(f.Random.Decimal(25m, 75m), 2),
                     "Shopping" => Math.Round(f.Random.Decimal(25m, 250m), 2),
-                    "Kids & Health" => Math.Round(f.Random.Decimal(20m, 180m), 2),
+                    "Health & Fitness" => Math.Round(f.Random.Decimal(20m, 180m), 2),
                     "Cash" => Math.Round(f.Random.Decimal(20m, 80m), 2),
                     _ => Math.Round(f.Random.Decimal(15m, 85m), 2)
                 })
+                // Assign each discretionary transaction to profile: 1 (Shared), 2 (Justin), or 3 (Mary)
+                .RuleFor(t => t.UserProfileId, f => f.Random.WeightedRandom(
+                    new int?[] { 1, 2, 3 },
+                    new float[] { 0.50f, 0.25f, 0.25f }))
                 .RuleFor(t => t.Institution, (f, t) => t.Category == "Cash" ? "M&T" : "Chase")
                 .RuleFor(t => t.Account, (f, t) => t.Category == "Cash" ? "M&T Checking" : "Chase Amazon Visa")
                 .RuleFor(t => t.UniqueHash, f => Guid.NewGuid().ToString("N"))
@@ -127,7 +133,7 @@ namespace FinanceTracker.Shared
             return transactions.OrderBy(t => t.Date).ToList();
         }
 
-        private static Transaction CreateTx(DateTime date, decimal amount, string type, string description, string category, string institution, string account)
+        private static Transaction CreateTx(DateTime date, decimal amount, string type, string description, string category, string institution, string account, int? userProfileId)
         {
             return new Transaction
             {
@@ -142,7 +148,8 @@ namespace FinanceTracker.Shared
                 Account = account,
                 UniqueHash = Guid.NewGuid().ToString("N"),
                 Source = "Demo",
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.UtcNow,
+                UserProfileId = userProfileId
             };
         }
     }

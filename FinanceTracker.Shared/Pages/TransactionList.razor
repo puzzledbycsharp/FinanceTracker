@@ -19,7 +19,7 @@
                     <i class="bi bi-x-circle"></i> Clear Filters
                 </button>
             }
-            <button class="flex items-center gap-2 rounded-lg border border-white/10 bg-zinc-900/80 px-4 py-2 text-sm font-medium text-white shadow-xl backdrop-blur-md transition-colors hover:border-cyan-500/50 hover:bg-zinc-800" @onclick="LoadTransactionsAsync">
+            <button class="flex items-center gap-2 rounded-lg border border-white/10 bg-zinc-900/80 px-4 py-2 text-sm font-medium text-white shadow-xl backdrop-blur-md transition-colors hover:border-cyan-500/50 hover:bg-zinc-800" @onclick="ForceRefreshAsync">
                 <i class="bi bi-arrow-clockwise"></i> Refresh
             </button>
         </div>
@@ -57,7 +57,6 @@
                     <tbody class="divide-y divide-white/5">
                         @foreach (var txn in _transactions)
                         {
-                            // Determine row styling for split parent vs child vs normal
                             var isParent = txn.IsSplit;
                             var isChild = txn.ParentTransactionId != null;
                             var rowClass = isParent ? "bg-zinc-950/40 text-zinc-500" : (isChild ? "bg-white/[0.02]" : "hover:bg-white/5 transition-colors");
@@ -133,7 +132,6 @@
     <div class="fixed inset-0 z-[1050] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
         <div class="w-full max-w-3xl overflow-hidden rounded-2xl border border-white/10 bg-zinc-900 shadow-2xl">
 
-            <!-- Modal Header -->
             <div class="flex items-center justify-between border-b border-white/10 bg-zinc-950/50 px-6 py-4">
                 <h5 class="text-lg font-bold text-white m-0">Split Transaction</h5>
                 <button type="button" class="text-zinc-400 hover:text-white transition-colors" @onclick="CloseSplitModal">
@@ -141,9 +139,7 @@
                 </button>
             </div>
 
-            <!-- Modal Body -->
             <div class="p-6">
-                <!-- Original Transaction Summary Box -->
                 <div class="mb-6 flex items-center justify-between rounded-xl border border-white/5 bg-zinc-800/50 p-4 shadow-inner">
                     <div>
                         <div class="text-xs font-semibold tracking-wide text-zinc-500 uppercase mb-1">Original Transaction</div>
@@ -199,7 +195,6 @@
                     <i class="bi bi-plus-circle-fill"></i> Add Split Row
                 </button>
 
-                <!-- Footer Summary & Actions -->
                 <div class="mt-8 flex flex-col sm:flex-row items-center justify-between border-t border-white/10 pt-6">
                     @{
                         decimal totalSplit = _splitItems.Sum(s => s.Amount);
@@ -232,11 +227,14 @@
     [SupplyParameterFromQuery] public string? Period { get; set; }
     [SupplyParameterFromQuery] public string? Type { get; set; }
     [SupplyParameterFromQuery] public int? Week { get; set; }
-    [SupplyParameterFromQuery] public decimal? MaxAmount { get; set; } // NEW PARAMETER
+    [SupplyParameterFromQuery] public decimal? MaxAmount { get; set; }
 
     private bool _isLoading = true;
     private List<Transaction> _transactions = new();
     private List<string> _availableCategories = new();
+
+    // Static in-memory cache to eliminate redundant database roundtrips on tab switching
+    private static List<Transaction>? _masterCache = null;
 
     // Modal State
     private bool _showSplitModal = false;
@@ -261,7 +259,18 @@
     private async Task LoadTransactionsAsync()
     {
         _isLoading = true;
-        var query = DbContext.Transactions.AsQueryable();
+
+        // If master cache is empty, load all records from DB once
+        if (_masterCache == null)
+        {
+            _masterCache = await DbContext.Transactions
+                .OrderByDescending(t => t.Date)
+                .ThenBy(t => t.Id)
+                .ToListAsync();
+        }
+
+        // Filter the cached list in-memory instantly without DB overhead
+        var query = _masterCache.AsEnumerable();
 
         if (!string.IsNullOrEmpty(Period))
         {
@@ -278,7 +287,10 @@
             }
         }
 
-        if (!string.IsNullOrEmpty(Type)) query = query.Where(t => t.Type == Type);
+        if (!string.IsNullOrEmpty(Type))
+        {
+            query = query.Where(t => t.Type == Type);
+        }
 
         if (!string.IsNullOrEmpty(Category))
         {
@@ -292,9 +304,15 @@
             query = query.Where(t => t.Amount <= MaxAmount.Value);
         }
 
-        // Order by Date descending. Children naturally follow their parent because they share the exact same Date.
-        _transactions = await query.OrderByDescending(t => t.Date).ThenBy(t => t.Id).ToListAsync();
+        _transactions = query.ToList();
         _isLoading = false;
+    }
+
+    private async Task ForceRefreshAsync()
+    {
+        // Invalidate cache and re-fetch from database
+        _masterCache = null;
+        await LoadTransactionsAsync();
     }
 
     private void ClearFilters() => Navigation.NavigateTo("/transactions");
@@ -306,14 +324,16 @@
         DbContext.Transactions.Update(txn);
         await DbContext.SaveChangesAsync();
         await MemoryService.LearnCategoryAsync(txn.CleanedDescription, newCategory);
+
+        // Update the item in the in-memory cache directly
+        var cachedTxn = _masterCache?.FirstOrDefault(t => t.Id == txn.Id);
+        if (cachedTxn != null) cachedTxn.Category = newCategory;
     }
 
-    // --- SPLIT MODAL LOGIC ---
     private void OpenSplitModal(Transaction txn)
     {
         _transactionToSplit = txn;
         _splitItems.Clear();
-        // Pre-fill two empty rows to start
         _splitItems.Add(new SplitItem());
         _splitItems.Add(new SplitItem());
         _showSplitModal = true;
@@ -331,12 +351,10 @@
     {
         if (_transactionToSplit == null) return;
 
-        // 1. Mark original as split
         _transactionToSplit.IsSplit = true;
         _transactionToSplit.Category = "Split";
         DbContext.Transactions.Update(_transactionToSplit);
 
-        // 2. Create the child transactions
         foreach (var split in _splitItems)
         {
             var childTxn = new Transaction
@@ -347,20 +365,23 @@
                 Type = _transactionToSplit.Type,
                 Amount = split.Amount,
                 Category = split.Category,
-                UniqueHash = $"{_transactionToSplit.UniqueHash}-split-{Guid.NewGuid().ToString().Substring(0, 8)}", // Ensures uniqueness
+                UniqueHash = $"{_transactionToSplit.UniqueHash}-split-{Guid.NewGuid().ToString().Substring(0, 8)}",
                 OriginalDescription = _transactionToSplit.OriginalDescription,
                 CleanedDescription = string.IsNullOrWhiteSpace(split.Description)
                     ? _transactionToSplit.CleanedDescription
                     : $"{_transactionToSplit.CleanedDescription} ({split.Description})",
-                ParentTransactionId = _transactionToSplit.Id // Link to parent
+                ParentTransactionId = _transactionToSplit.Id
             };
 
             await DbContext.Transactions.AddAsync(childTxn);
-            await MemoryService.LearnCategoryAsync(childTxn.CleanedDescription, split.Category); // Train memory
+            await MemoryService.LearnCategoryAsync(childTxn.CleanedDescription, split.Category);
         }
 
         await DbContext.SaveChangesAsync();
         CloseSplitModal();
-        await LoadTransactionsAsync(); // Reload the grid to see the children
+
+        // Invalidate cache so the new split children load correctly
+        _masterCache = null;
+        await LoadTransactionsAsync();
     }
 }
