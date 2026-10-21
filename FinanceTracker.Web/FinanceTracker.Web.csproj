@@ -29,5 +29,7 @@
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
   </ItemGroup>
-
+  <Target Name="Tailwind" BeforeTargets="Build">
+    <Exec Command="npx tailwindcss -i ./Styles/app.css -o ./wwwroot/app.css" />
+  </Target>
 </Project>

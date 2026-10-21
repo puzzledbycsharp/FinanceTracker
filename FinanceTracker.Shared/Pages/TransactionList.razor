@@ -8,17 +8,18 @@
 @inject CategoryMemoryService MemoryService
 @inject NavigationManager Navigation
 
-<div class="container mt-4">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h2>Transaction Manager</h2>
-        <div>
+<div class="mx-auto max-w-7xl">
+    <!-- Header & Actions -->
+    <div class="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <h2 class="text-2xl font-bold tracking-tight text-white">Transaction Manager</h2>
+        <div class="flex items-center gap-3">
             @if (!string.IsNullOrEmpty(Category) || !string.IsNullOrEmpty(Period) || !string.IsNullOrEmpty(Type) || Week.HasValue)
             {
-                <button class="btn btn-outline-secondary me-2" @onclick="ClearFilters">
+                <button class="flex items-center gap-2 rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-2 text-sm font-medium text-rose-400 transition-colors hover:bg-rose-500/20" @onclick="ClearFilters">
                     <i class="bi bi-x-circle"></i> Clear Filters
                 </button>
             }
-            <button class="btn btn-outline-primary" @onclick="LoadTransactionsAsync">
+            <button class="flex items-center gap-2 rounded-lg border border-white/10 bg-zinc-900/80 px-4 py-2 text-sm font-medium text-white shadow-xl backdrop-blur-md transition-colors hover:border-cyan-500/50 hover:bg-zinc-800" @onclick="LoadTransactionsAsync">
                 <i class="bi bi-arrow-clockwise"></i> Refresh
             </button>
         </div>
@@ -26,83 +27,102 @@
 
     @if (_isLoading)
     {
-        <div class="spinner-border text-primary" role="status">
-            <span class="visually-hidden">Loading...</span>
+        <div class="flex items-center justify-center p-12">
+            <div class="h-8 w-8 animate-spin rounded-full border-b-2 border-t-2 border-cyan-500"></div>
         </div>
     }
     else if (!_transactions.Any())
     {
-        <div class="alert alert-info">No transactions found. Go import some data!</div>
+        <div class="rounded-2xl border border-white/5 bg-zinc-900/50 p-12 text-center shadow-2xl backdrop-blur-md">
+            <i class="bi bi-inbox text-4xl text-zinc-600 mb-4 block"></i>
+            <p class="text-lg font-medium text-zinc-400 m-0">No transactions found. Go import some data!</p>
+        </div>
     }
     else
     {
-        <div class="table-responsive pb-5">
-            <table class="table table-hover align-middle shadow-sm">
-                <thead class="table-light">
-                    <tr>
-                        <th>Date</th>
-                        <th>Account</th>
-                        <th>Description</th>
-                        <th>Amount</th>
-                        <th>Category</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var txn in _transactions)
-                    {
-                        <!-- Highlight parent rows as disabled, indent children -->
-                        <tr class="@(txn.IsSplit ? "table-light text-muted" : "") @(txn.ParentTransactionId != null ? "bg-light" : "")">
-                            <td>@txn.Date.ToShortDateString()</td>
-
-                            <td>
-                                <span class="badge bg-light text-dark border">@txn.Account</span>
-                            </td>
-
-                            <td class="@(txn.ParentTransactionId != null ? "ps-4 border-start border-3 border-secondary" : "")">
-                                @if (txn.ParentTransactionId != null)
-                                {
-                                    <i class="bi bi-arrow-return-right text-muted me-1"></i>
-                                }
-                                <span title="@txn.OriginalDescription">
-                                    @(txn.IsSplit ? $"[SPLIT] {txn.CleanedDescription}" : txn.CleanedDescription)
-                                </span>
-                            </td>
-
-                            <td class="@(txn.IsSplit ? "text-decoration-line-through" : "")">
-                                @txn.Amount.ToString("C")
-                            </td>
-
-                            <td>
-                                @if (txn.IsSplit)
-                                {
-                                    <span class="text-muted fst-italic">Split into multiple</span>
-                                }
-                                else
-                                {
-                                    <select class="form-select form-select-sm"
-                                            value="@txn.Category"
-                                            @onchange="@(e => UpdateCategoryAsync(txn, e.Value?.ToString()))">
-                                        <option value="">Uncategorized</option>
-                                        @foreach (var cat in _availableCategories)
-                                        {
-                                            <option value="@cat">@cat</option>
-                                        }
-                                    </select>
-                                }
-                            </td>
-                            <td>
-                                @if (!txn.IsSplit && txn.ParentTransactionId == null && txn.Type == "Expense")
-                                {
-                                    <button class="btn btn-sm btn-outline-secondary" @onclick="() => OpenSplitModal(txn)" title="Split Transaction">
-                                        <i class="bi bi-scissors"></i>
-                                    </button>
-                                }
-                            </td>
+        <!-- Premium Glassmorphic Data Grid -->
+        <div class="overflow-hidden rounded-2xl border border-white/5 bg-zinc-900/50 shadow-2xl backdrop-blur-md mb-12">
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm text-zinc-300">
+                    <thead class="border-b border-white/10 bg-zinc-950/50 text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                        <tr>
+                            <th class="px-6 py-4">Date</th>
+                            <th class="px-6 py-4">Account</th>
+                            <th class="px-6 py-4">Description</th>
+                            <th class="px-6 py-4">Amount</th>
+                            <th class="px-6 py-4">Category</th>
+                            <th class="px-6 py-4 text-center">Actions</th>
                         </tr>
-                    }
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody class="divide-y divide-white/5">
+                        @foreach (var txn in _transactions)
+                        {
+                            // Determine row styling for split parent vs child vs normal
+                            var isParent = txn.IsSplit;
+                            var isChild = txn.ParentTransactionId != null;
+                            var rowClass = isParent ? "bg-zinc-950/40 text-zinc-500" : (isChild ? "bg-white/[0.02]" : "hover:bg-white/5 transition-colors");
+
+                            <tr class="@rowClass">
+                                <td class="whitespace-nowrap px-6 py-4 font-medium @(isParent ? "text-zinc-600" : "text-zinc-400")">
+                                    @txn.Date.ToShortDateString()
+                                </td>
+
+                                <td class="px-6 py-4">
+                                    <span class="rounded-full border border-white/10 bg-zinc-950 px-2.5 py-1 text-xs font-semibold tracking-wide text-zinc-400 shadow-inner">
+                                        @txn.Account
+                                    </span>
+                                </td>
+
+                                <td class="px-6 py-4 @(isChild ? "pl-12" : "")">
+                                    <div class="flex items-center gap-2">
+                                        @if (isChild)
+                                        {
+                                            <i class="bi bi-arrow-return-right text-cyan-500/50"></i>
+                                        }
+                                        <span title="@txn.OriginalDescription" class="@(isParent ? "text-zinc-500" : "text-zinc-200")">
+                                            @(isParent ? $"[SPLIT] {txn.CleanedDescription}" : txn.CleanedDescription)
+                                        </span>
+                                    </div>
+                                </td>
+
+                                <td class="whitespace-nowrap px-6 py-4 font-semibold @(isParent ? "line-through text-zinc-600" : "text-white")">
+                                    @txn.Amount.ToString("C")
+                                </td>
+
+                                <td class="px-6 py-4 w-48">
+                                    @if (txn.IsSplit)
+                                    {
+                                        <span class="text-xs font-medium italic text-zinc-600">Split into multiple</span>
+                                    }
+                                    else
+                                    {
+                                        <select class="w-full cursor-pointer rounded-lg border border-white/10 bg-zinc-950 px-3 py-1.5 text-sm text-zinc-300 shadow-inner outline-none transition-all focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500"
+                                                value="@txn.Category"
+                                                @onchange="@(e => UpdateCategoryAsync(txn, e.Value?.ToString()))">
+                                            <option value="">Uncategorized</option>
+                                            @foreach (var cat in _availableCategories)
+                                            {
+                                                <option value="@cat">@cat</option>
+                                            }
+                                        </select>
+                                    }
+                                </td>
+
+                                <td class="px-6 py-4 text-center">
+                                    @if (!txn.IsSplit && txn.ParentTransactionId == null && txn.Type == "Expense")
+                                    {
+                                        <button class="flex h-8 w-8 items-center justify-center mx-auto rounded-lg border border-white/10 bg-zinc-800 text-zinc-400 transition-colors hover:border-cyan-500/50 hover:bg-cyan-500/10 hover:text-cyan-400"
+                                                @onclick="() => OpenSplitModal(txn)"
+                                                title="Split Transaction">
+                                            <i class="bi bi-scissors"></i>
+                                        </button>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
         </div>
     }
 </div>
@@ -110,39 +130,47 @@
 <!-- SPLIT MODAL OVERLAY -->
 @if (_showSplitModal && _transactionToSplit != null)
 {
-    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.6);">
-        <div class="modal-dialog modal-lg modal-dialog-centered">
-            <div class="modal-content">
-                <div class="modal-header bg-light">
-                    <h5 class="modal-title">Split Transaction</h5>
-                    <button type="button" class="btn-close" @onclick="CloseSplitModal"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="alert alert-secondary d-flex justify-content-between align-items-center">
-                        <div>
-                            <strong>Original:</strong> @_transactionToSplit.CleanedDescription <br />
-                            <strong>Account:</strong> @_transactionToSplit.Account
-                        </div>
-                        <div class="text-end">
-                            <strong class="fs-5">@_transactionToSplit.Amount.ToString("C")</strong>
-                        </div>
-                    </div>
+    <div class="fixed inset-0 z-[1050] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+        <div class="w-full max-w-3xl overflow-hidden rounded-2xl border border-white/10 bg-zinc-900 shadow-2xl">
 
-                    <table class="table table-sm mt-3">
-                        <thead>
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between border-b border-white/10 bg-zinc-950/50 px-6 py-4">
+                <h5 class="text-lg font-bold text-white m-0">Split Transaction</h5>
+                <button type="button" class="text-zinc-400 hover:text-white transition-colors" @onclick="CloseSplitModal">
+                    <i class="bi bi-x-lg text-xl"></i>
+                </button>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="p-6">
+                <!-- Original Transaction Summary Box -->
+                <div class="mb-6 flex items-center justify-between rounded-xl border border-white/5 bg-zinc-800/50 p-4 shadow-inner">
+                    <div>
+                        <div class="text-xs font-semibold tracking-wide text-zinc-500 uppercase mb-1">Original Transaction</div>
+                        <div class="text-base font-medium text-white">@_transactionToSplit.CleanedDescription</div>
+                        <div class="text-sm text-zinc-400 mt-1"><i class="bi bi-credit-card mr-1"></i> @_transactionToSplit.Account</div>
+                    </div>
+                    <div class="text-right">
+                        <strong class="text-2xl font-bold text-white">@_transactionToSplit.Amount.ToString("C")</strong>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm text-zinc-300 mb-4">
+                        <thead class="text-xs font-semibold uppercase tracking-wider text-zinc-500 border-b border-white/10">
                             <tr>
-                                <th>Category</th>
-                                <th>Amount ($)</th>
-                                <th>Note (Optional)</th>
-                                <th></th>
+                                <th class="pb-3 pr-4">Category</th>
+                                <th class="pb-3 px-4 w-32">Amount ($)</th>
+                                <th class="pb-3 px-4">Note (Optional)</th>
+                                <th class="pb-3 pl-4 text-center"></th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody class="divide-y divide-white/5">
                             @foreach (var split in _splitItems)
                             {
                                 <tr>
-                                    <td>
-                                        <select class="form-select form-select-sm" @bind="split.Category">
+                                    <td class="py-3 pr-4">
+                                        <select class="w-full rounded-lg border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500" @bind="split.Category">
                                             <option value="">Select...</option>
                                             @foreach (var cat in _availableCategories)
                                             {
@@ -150,38 +178,48 @@
                                             }
                                         </select>
                                     </td>
-                                    <td>
-                                        <input type="number" class="form-control form-control-sm" @bind="split.Amount" step="0.01" />
+                                    <td class="py-3 px-4">
+                                        <input type="number" class="w-full rounded-lg border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500" @bind="split.Amount" step="0.01" />
                                     </td>
-                                    <td>
-                                        <input type="text" class="form-control form-control-sm" @bind="split.Description" placeholder="e.g., Groceries" />
+                                    <td class="py-3 px-4">
+                                        <input type="text" class="w-full rounded-lg border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 placeholder-zinc-600" @bind="split.Description" placeholder="e.g., Groceries" />
                                     </td>
-                                    <td>
-                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => _splitItems.Remove(split)"><i class="bi bi-trash"></i></button>
+                                    <td class="py-3 pl-4 text-center">
+                                        <button class="flex h-8 w-8 mx-auto items-center justify-center rounded-lg border border-transparent text-zinc-500 transition-colors hover:border-rose-500/30 hover:bg-rose-500/10 hover:text-rose-400" @onclick="() => _splitItems.Remove(split)">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
                                     </td>
                                 </tr>
                             }
                         </tbody>
                     </table>
+                </div>
 
-                    <button class="btn btn-sm btn-outline-primary mt-2" @onclick="AddSplitRow">
-                        <i class="bi bi-plus-circle"></i> Add Split
-                    </button>
+                <button class="flex items-center gap-2 text-sm font-semibold text-cyan-400 hover:text-cyan-300 transition-colors" @onclick="AddSplitRow">
+                    <i class="bi bi-plus-circle-fill"></i> Add Split Row
+                </button>
 
-                    <div class="mt-4 pt-3 border-top d-flex justify-content-between align-items-center">
-                        @{
-                            decimal totalSplit = _splitItems.Sum(s => s.Amount);
-                            decimal remaining = _transactionToSplit.Amount - totalSplit;
-                        }
-                        <h6 class="mb-0 @(remaining == 0 ? "text-success" : "text-danger")">
-                            Remaining to assign: <strong>@remaining.ToString("C")</strong>
-                        </h6>
-                        <div>
-                            <button class="btn btn-secondary me-2" @onclick="CloseSplitModal">Cancel</button>
-                            <button class="btn btn-success" @onclick="SaveSplitAsync" disabled="@(remaining != 0 || _splitItems.Any(s => string.IsNullOrEmpty(s.Category)))">
-                                Save Splits
-                            </button>
-                        </div>
+                <!-- Footer Summary & Actions -->
+                <div class="mt-8 flex flex-col sm:flex-row items-center justify-between border-t border-white/10 pt-6">
+                    @{
+                        decimal totalSplit = _splitItems.Sum(s => s.Amount);
+                        decimal remaining = _transactionToSplit.Amount - totalSplit;
+                    }
+                    <div class="mb-4 sm:mb-0 flex items-center gap-3">
+                        <span class="text-sm font-medium text-zinc-400">Remaining to assign:</span>
+                        <span class="rounded-lg border px-3 py-1 text-lg font-bold @(remaining == 0 ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400" : "border-rose-500/30 bg-rose-500/10 text-rose-400")">
+                            @remaining.ToString("C")
+                        </span>
+                    </div>
+
+                    <div class="flex gap-3 w-full sm:w-auto">
+                        <button class="flex-1 sm:flex-none rounded-lg border border-white/10 bg-zinc-800 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-zinc-700" @onclick="CloseSplitModal">Cancel</button>
+
+                        <button class="flex-1 sm:flex-none rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-400 px-6 py-2.5 text-sm font-bold text-zinc-950 transition-all hover:scale-105 disabled:opacity-50 disabled:hover:scale-100 disabled:grayscale"
+                                @onclick="SaveSplitAsync"
+                                disabled="@(remaining != 0 || _splitItems.Any(s => string.IsNullOrEmpty(s.Category)))">
+                            Save Splits
+                        </button>
                     </div>
                 </div>
             </div>

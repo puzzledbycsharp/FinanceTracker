@@ -2,34 +2,47 @@
 @inject ToastService ToastService
 @implements IDisposable
 
-<div class="toast-container position-fixed top-0 end-0 p-3 mt-5" style="z-index: 1055;">
+<!-- Wrapper: pointer-events-none ensures you can click the screen behind it -->
+<div class="fixed right-4 sm:right-6 top-20 z-[1055] flex w-full max-w-[calc(100vw-2rem)] sm:max-w-sm flex-col gap-3 pointer-events-none">
     @foreach (var toast in _toasts)
     {
-        <div class="toast show align-items-center text-white bg-success border-0 mb-2 shadow-lg"
-             style="animation: slideInRight 0.3s ease-out;" role="alert">
-            <div class="d-flex">
-                <div class="toast-body d-flex align-items-center gap-3">
-                    <div class="bg-white text-success rounded-circle d-flex align-items-center justify-content-center shadow-sm" style="width: 40px; height: 40px;">
-                        <i class="bi @toast.Icon fs-4"></i>
-                    </div>
-                    <div>
-                        <strong class="d-block fs-6">@toast.Title</strong>
-                        <small class="opacity-75">@toast.Message</small>
-                    </div>
-                    <span class="badge bg-warning text-dark ms-3 shadow-sm border border-light">
-                        +@toast.Points Pts
-                    </span>
-                </div>
-                <button type="button" class="btn-close btn-close-white me-2 m-auto" @onclick="() => RemoveToast(toast.Id)"></button>
+        <!-- Toast Item: pointer-events-auto makes the notification clickable/dismissible -->
+        <div class="pointer-events-auto flex items-center gap-4 rounded-2xl border border-emerald-500/30 bg-zinc-900/90 p-4 shadow-[0_10px_40px_-10px_rgba(16,185,129,0.3)] backdrop-blur-xl toast-animate-enter" role="alert">
+
+            <!-- Toast Icon -->
+            <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-cyan-500 shadow-inner border border-white/10">
+                <i class="bi @toast.Icon text-xl text-white"></i>
             </div>
+
+            <!-- Text Content -->
+            <div class="flex flex-1 flex-col">
+                <strong class="text-sm font-bold tracking-wide text-white m-0 leading-tight">@toast.Title</strong>
+                <span class="mt-0.5 text-xs font-medium text-zinc-400 leading-tight">@toast.Message</span>
+            </div>
+
+            <!-- Points Badge & Close -->
+            <div class="flex shrink-0 items-center gap-3">
+                <span class="rounded-full border border-yellow-500/30 bg-yellow-500/10 px-2 py-1 text-[10px] font-black uppercase tracking-widest text-yellow-400 shadow-[0_0_15px_rgba(250,204,21,0.15)]">
+                    +@toast.Points Pts
+                </span>
+
+                <button type="button" class="flex h-6 w-6 items-center justify-center text-zinc-500 transition-colors hover:text-white focus:outline-none" @onclick="() => RemoveToast(toast.Id)">
+                    <i class="bi bi-x-lg text-sm"></i>
+                </button>
+            </div>
+
         </div>
     }
 </div>
 
 <style>
+    .toast-animate-enter {
+        animation: slideInRight 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
     @@keyframes slideInRight {
         from {
-            transform: translateX(100%);
+            transform: translateX(120%);
             opacity: 0;
         }
 

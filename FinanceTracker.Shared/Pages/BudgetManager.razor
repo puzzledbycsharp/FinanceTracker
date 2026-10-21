@@ -5,13 +5,14 @@
 @using Microsoft.EntityFrameworkCore
 @inject FinanceDbContext DbContext
 
-<div class="container mt-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2>Budget Manager</h2>
+<div class="mx-auto max-w-7xl">
+    <!-- Header -->
+    <div class="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <h2 class="text-2xl font-bold tracking-tight text-white">Budget Manager</h2>
 
-        <div class="d-flex align-items-center gap-2">
-            <label class="fw-bold text-secondary mb-0">Period:</label>
-            <select class="form-select w-auto" @bind="_selectedPeriod" @bind:after="LoadBudgetsAsync">
+        <div class="flex items-center gap-3">
+            <label class="text-sm font-medium text-zinc-400">Period:</label>
+            <select class="cursor-pointer rounded-lg border border-white/10 bg-zinc-900/80 px-4 py-2 text-sm text-white shadow-xl outline-none backdrop-blur-md focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500" @bind="_selectedPeriod" @bind:after="LoadBudgetsAsync">
                 @foreach (var p in _availablePeriods)
                 {
                     <option value="@p.Value">@p.Label</option>
@@ -20,15 +21,17 @@
         </div>
     </div>
 
-    <div class="row">
-        <!-- Add New Budget Form -->
-        <div class="col-md-4 mb-4">
-            <div class="card shadow-sm">
-                <div class="card-header bg-light">Add/Update Budget</div>
-                <div class="card-body">
-                    <div class="mb-3">
-                        <label class="form-label">Category</label>
-                        <select class="form-select" @bind="_newCategory">
+    <div class="grid gap-8 lg:grid-cols-12">
+        <!-- Add New Budget Form (Left Column) -->
+        <div class="lg:col-span-4">
+            <div class="rounded-2xl border border-white/5 bg-zinc-900/50 shadow-2xl backdrop-blur-md">
+                <div class="border-b border-white/5 px-6 py-4">
+                    <h5 class="m-0 text-lg font-bold text-white">Add / Update Budget</h5>
+                </div>
+                <div class="flex flex-col gap-5 p-6">
+                    <div>
+                        <label class="mb-2 block text-sm font-medium text-zinc-400">Category</label>
+                        <select class="w-full cursor-pointer rounded-lg border border-white/10 bg-zinc-950 px-4 py-2.5 text-sm text-white outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500" @bind="_newCategory">
                             <option value="">-- Select Category --</option>
                             @foreach (var cat in _availableCategories)
                             {
@@ -36,47 +39,67 @@
                             }
                         </select>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Monthly Limit ($)</label>
-                        <input type="number" class="form-control" @bind="_newLimit" />
+                    <div>
+                        <label class="mb-2 block text-sm font-medium text-zinc-400">Monthly Limit ($)</label>
+                        <input type="number" class="w-full rounded-lg border border-white/10 bg-zinc-950 px-4 py-2.5 text-sm text-white outline-none placeholder-zinc-600 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500" @bind="_newLimit" />
                     </div>
-                    <button class="btn btn-primary w-100" @onclick="SaveBudgetAsync" disabled="@(string.IsNullOrEmpty(_newCategory) || _newLimit <= 0)">
+
+                    <button class="mt-2 w-full rounded-lg bg-gradient-to-r from-cyan-500 to-blue-600 px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-cyan-500/25 transition-all hover:scale-[1.02] disabled:scale-100 disabled:opacity-50 disabled:grayscale"
+                            @onclick="SaveBudgetAsync"
+                            disabled="@(string.IsNullOrEmpty(_newCategory) || _newLimit <= 0)">
                         Save Budget for @_selectedPeriodLabel
                     </button>
                 </div>
             </div>
         </div>
 
-        <!-- Current Budgets List -->
-        <div class="col-md-8">
-            <div class="card shadow-sm">
-                <div class="card-header bg-light">Active Budgets (@_selectedPeriodLabel)</div>
-                <div class="card-body p-0">
+        <!-- Current Budgets List (Right Column) -->
+        <div class="lg:col-span-8">
+            <div class="overflow-hidden rounded-2xl border border-white/5 bg-zinc-900/50 shadow-2xl backdrop-blur-md">
+                <div class="flex items-center justify-between border-b border-white/5 px-6 py-4">
+                    <h5 class="m-0 text-lg font-bold text-white">Active Budgets (@_selectedPeriodLabel)</h5>
+                    <span class="rounded border border-white/5 bg-white/10 px-2.5 py-1 text-xs font-semibold text-zinc-400">@_budgets.Count Total</span>
+                </div>
+
+                <div class="p-0">
                     @if (!_budgets.Any())
                     {
-                        <div class="p-4 text-center text-muted">
-                            <p>No budgets set for this month.</p>
-                            <button class="btn btn-outline-secondary btn-sm" @onclick="CopyPreviousMonthBudgetsAsync">
+                        <!-- Elegant Empty State -->
+                        <div class="flex flex-col items-center justify-center p-12 text-center">
+                            <div class="mb-4 flex h-16 w-16 items-center justify-center rounded-full border border-white/5 bg-zinc-800/50">
+                                <i class="bi bi-wallet2 text-2xl text-zinc-500"></i>
+                            </div>
+                            <p class="mb-2 text-base font-medium text-zinc-300 m-0">No budgets set for this month.</p>
+                            <p class="mb-6 text-sm text-zinc-500 m-0">Copy your limits from the previous month to get started quickly.</p>
+
+                            <button class="flex items-center gap-2 rounded-lg border border-white/10 bg-zinc-800 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:border-zinc-600 hover:bg-zinc-700" @onclick="CopyPreviousMonthBudgetsAsync">
                                 <i class="bi bi-files"></i> Copy from Previous Month
                             </button>
                         </div>
                     }
                     else
                     {
-                        <ul class="list-group list-group-flush">
+                        <div class="flex flex-col divide-y divide-white/5">
                             @foreach (var budget in _budgets)
                             {
-                                <li class="list-group-item d-flex justify-content-between align-items-center">
-                                    <strong>@budget.Category</strong>
-                                    <div>
-                                        <span class="badge bg-primary rounded-pill me-3 fs-6">@budget.MonthlyLimit.ToString("C")</span>
-                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteBudgetAsync(budget)">
+                                <div class="group flex items-center justify-between px-6 py-4 transition-colors hover:bg-white/5">
+                                    <div class="flex items-center gap-4">
+                                        <div class="flex h-10 w-10 items-center justify-center rounded-lg border border-white/5 bg-zinc-950/50 shadow-inner">
+                                            <i class="bi bi-tag text-cyan-500/70"></i>
+                                        </div>
+                                        <strong class="text-base font-medium text-zinc-200 transition-colors group-hover:text-cyan-400">@budget.Category</strong>
+                                    </div>
+                                    <div class="flex items-center gap-4">
+                                        <span class="rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-3 py-1.5 text-sm font-bold tracking-wide text-cyan-400 shadow-inner">
+                                            @budget.MonthlyLimit.ToString("C")
+                                        </span>
+                                        <button class="flex h-8 w-8 items-center justify-center rounded-lg border border-transparent text-zinc-500 transition-colors hover:border-rose-500/30 hover:bg-rose-500/10 hover:text-rose-400" @onclick="() => DeleteBudgetAsync(budget)" title="Delete Budget">
                                             <i class="bi bi-trash"></i>
                                         </button>
                                     </div>
-                                </li>
+                                </div>
                             }
-                        </ul>
+                        </div>
                     }
                 </div>
             </div>

@@ -8,69 +8,84 @@
 
 @if (IsVisible)
 {
-    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content shadow-lg">
-                <div class="modal-header bg-primary text-white">
-                    <h5 class="modal-title"><i class="bi bi-plus-circle me-2"></i>Add Transaction</h5>
-                    <button type="button" class="btn-close btn-close-white" aria-label="Close" @onclick="Close"></button>
+    <div class="fixed inset-0 z-[1050] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+        <div class="w-full max-w-lg overflow-hidden rounded-2xl border border-white/10 bg-zinc-900 shadow-2xl">
+
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between border-b border-white/10 bg-zinc-950/50 px-6 py-4">
+                <h5 class="m-0 flex items-center text-lg font-bold text-white">
+                    <i class="bi bi-plus-circle mr-2 text-cyan-400"></i> Add Transaction
+                </h5>
+                <button type="button" class="text-zinc-400 transition-colors hover:text-white" @onclick="Close" aria-label="Close">
+                    <i class="bi bi-x-lg text-xl"></i>
+                </button>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="flex flex-col gap-5 p-6">
+
+                <!-- Date -->
+                <div>
+                    <label class="mb-2 block text-xs font-bold uppercase tracking-wider text-zinc-500">Date</label>
+                    <input type="date" class="w-full cursor-pointer rounded-lg border border-white/10 bg-zinc-950 px-4 py-2.5 text-sm text-white outline-none transition-colors focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 [color-scheme:dark]" @bind="_newTxn.Date" />
                 </div>
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label text-muted small fw-bold">Date</label>
-                        <input type="date" class="form-control" @bind="_newTxn.Date" />
-                    </div>
 
-                    <div class="row mb-3">
-                        <div class="col-6">
-                            <label class="form-label text-muted small fw-bold">Type</label>
-                            <select class="form-select" @bind="_newTxn.Type">
-                                <option value="Expense">Expense</option>
-                                <option value="Income">Income</option>
-                                <option value="Transfer">Transfer</option>
-                            </select>
-                        </div>
-                        <div class="col-6">
-                            <label class="form-label text-muted small fw-bold">Amount</label>
-                            <div class="input-group">
-                                <span class="input-group-text">$</span>
-                                <input type="number" step="0.01" class="form-control" @bind="_newTxn.Amount" />
-                            </div>
-                        </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <!-- Type -->
+                    <div>
+                        <label class="mb-2 block text-xs font-bold uppercase tracking-wider text-zinc-500">Type</label>
+                        <select class="w-full cursor-pointer rounded-lg border border-white/10 bg-zinc-950 px-4 py-2.5 text-sm text-white outline-none transition-colors focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500" @bind="_newTxn.Type">
+                            <option value="Expense">Expense</option>
+                            <option value="Income">Income</option>
+                            <option value="Transfer">Transfer</option>
+                        </select>
                     </div>
-
-                    <div class="mb-3">
-                        <label class="form-label text-muted small fw-bold">Description (Merchant)</label>
-                        <input type="text" class="form-control" @bind="_newTxn.OriginalDescription" placeholder="e.g., Target, Safeway, Comcast" />
-                    </div>
-
-                    <!-- NEW: Side-by-side Category and Profile selectors -->
-                    <div class="row mb-3">
-                        <div class="col-6">
-                            <label class="form-label text-muted small fw-bold">Category</label>
-                            <select class="form-select" @bind="_newTxn.Category">
-                                <option value="">-- Select Category --</option>
-                                @foreach (var cat in _categories)
-                                {
-                                    <option value="@cat">@cat</option>
-                                }
-                            </select>
-                        </div>
-                        <div class="col-6">
-                            <label class="form-label text-muted small fw-bold">Profile (Spender)</label>
-                            <select class="form-select" @bind="_newTxn.UserProfileId">
-                                <option value="">-- Shared / Unassigned --</option>
-                                @foreach (var profile in _profiles)
-                                {
-                                    <option value="@profile.Id">@profile.Name</option>
-                                }
-                            </select>
+                    <!-- Amount -->
+                    <div>
+                        <label class="mb-2 block text-xs font-bold uppercase tracking-wider text-zinc-500">Amount</label>
+                        <div class="flex items-center overflow-hidden rounded-lg border border-white/10 bg-zinc-950 transition-colors focus-within:border-cyan-500 focus-within:ring-1 focus-within:ring-cyan-500">
+                            <span class="pl-4 pr-1 font-medium text-zinc-500">$</span>
+                            <input type="number" step="0.01" class="w-full bg-transparent py-2.5 pr-4 text-sm font-bold text-white outline-none placeholder-zinc-600" @bind="_newTxn.Amount" placeholder="0.00" />
                         </div>
                     </div>
                 </div>
-                <div class="modal-footer bg-light">
-                    <button type="button" class="btn btn-outline-secondary" @onclick="Close">Cancel</button>
-                    <button type="button" class="btn btn-primary" @onclick="SaveTransactionAsync" disabled="@IsSaveDisabled">Save</button>
+
+                <!-- Description -->
+                <div>
+                    <label class="mb-2 block text-xs font-bold uppercase tracking-wider text-zinc-500">Description (Merchant)</label>
+                    <input type="text" class="w-full rounded-lg border border-white/10 bg-zinc-950 px-4 py-2.5 text-sm text-white outline-none transition-colors focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 placeholder-zinc-600" @bind="_newTxn.OriginalDescription" placeholder="e.g., Target, Safeway, Comcast" />
+                </div>
+
+                <!-- Side-by-side Category and Profile selectors -->
+                <div class="grid grid-cols-2 gap-4">
+                    <!-- Category -->
+                    <div>
+                        <label class="mb-2 block text-xs font-bold uppercase tracking-wider text-zinc-500">Category</label>
+                        <select class="w-full cursor-pointer rounded-lg border border-white/10 bg-zinc-950 px-4 py-2.5 text-sm text-white outline-none transition-colors focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500" @bind="_newTxn.Category">
+                            <option value="">-- Select --</option>
+                            @foreach (var cat in _categories)
+                            {
+                                <option value="@cat">@cat</option>
+                            }
+                        </select>
+                    </div>
+                    <!-- Profile -->
+                    <div>
+                        <label class="mb-2 block text-xs font-bold uppercase tracking-wider text-zinc-500">Profile</label>
+                        <select class="w-full cursor-pointer rounded-lg border border-white/10 bg-zinc-950 px-4 py-2.5 text-sm text-white outline-none transition-colors focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500" @bind="_newTxn.UserProfileId">
+                            <option value="">-- Shared --</option>
+                            @foreach (var profile in _profiles)
+                            {
+                                <option value="@profile.Id">@profile.Name</option>
+                            }
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Footer Actions -->
+                <div class="mt-4 flex gap-3 border-t border-white/10 pt-6">
+                    <button type="button" class="flex-1 rounded-lg border border-white/10 bg-zinc-800 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-zinc-700" @onclick="Close">Cancel</button>
+                    <button type="button" class="flex-1 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-600 px-6 py-2.5 text-sm font-bold text-white shadow-lg shadow-cyan-500/25 transition-all hover:scale-[1.02] disabled:scale-100 disabled:opacity-50 disabled:grayscale" @onclick="SaveTransactionAsync" disabled="@IsSaveDisabled">Save Transaction</button>
                 </div>
             </div>
         </div>
@@ -81,7 +96,7 @@
     public bool IsVisible { get; private set; } = false;
     private Transaction _newTxn = new();
     private List<string> _categories = new();
-    private List<UserProfile> _profiles = new(); // NEW: Profile list
+    private List<UserProfile> _profiles = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -91,7 +106,7 @@
             .OrderBy(n => n)
             .ToListAsync();
 
-        // NEW: Load profiles
+        // Load profiles
         _profiles = await DbContext.UserProfiles.ToListAsync();
     }
 

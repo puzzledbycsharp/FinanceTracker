@@ -1,16 +1,15 @@
 ﻿@inherits LayoutComponentBase
 
-<div class="page">
-    <div class="sidebar">
+<div class="min-h-screen bg-zinc-950 text-slate-300 flex flex-col md:flex-row antialiased selection:bg-cyan-500/30">
+
+    <!-- Sidebar Container (Glassmorphic Midnight Border) -->
+    <aside class="w-full md:w-64 shrink-0 border-b md:border-b-0 md:border-r border-white/5 bg-zinc-900/40 backdrop-blur-xl">
         <NavMenu />
-    </div>
+    </aside>
 
-    <main>
-        <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
-        </div>
-
-        <article class="content px-4">
+    <!-- Main Content Stage -->
+    <main class="flex-1 min-w-0 flex flex-col overflow-y-auto">
+        <article class="flex-1 p-4 sm:p-6 lg:p-8">
             @Body
         </article>
     </main>
@@ -18,23 +17,26 @@
 
 <!-- Gamification Toast Popups -->
 <FinanceTracker.Shared.Components.ToastContainer />
-<!-- 1. The Global Modal Component -->
+
+<!-- Global Add Transaction Modal -->
 <FinanceTracker.Shared.Components.AddTransactionModal @ref="_addModal" />
 
-<!-- 2. The Floating Action Button (FAB) -->
-<button class="btn btn-primary shadow rounded-circle d-flex align-items-center justify-content-center"
-        style="position: fixed; bottom: 30px; right: 30px; width: 60px; height: 60px; z-index: 1000;"
-        @onclick="OpenAddModal">
-    <span style="font-size: 2rem; font-weight: 500; line-height: 1; margin-bottom: 4px;">+</span>
+<!-- Floating Action Button (FAB): FinTech Cyan/Blue Glow -->
+<button class="fixed bottom-8 right-8 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-tr from-cyan-500 to-blue-600 text-white shadow-xl shadow-cyan-500/25 transition-all duration-300 hover:scale-110 hover:shadow-cyan-500/40 active:scale-95 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2 focus:ring-offset-zinc-950"
+        @onclick="OpenAddModal"
+        title="Add Transaction"
+        aria-label="Add Transaction">
+    <span class="text-3xl leading-none font-light mb-1">+</span>
 </button>
 
-<div id="blazor-error-ui" data-nosnippet>
-    An unhandled error has occurred.
-    <a href="." class="reload">Reload</a>
-    <span class="dismiss">🗙</span>
+<!-- Blazor Error Banner -->
+<div id="blazor-error-ui" class="hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-50 rounded-xl border border-rose-500/30 bg-zinc-900/95 px-5 py-3 text-sm text-rose-200 shadow-2xl backdrop-blur-md" data-nosnippet>
+    <span>An unhandled error has occurred.</span>
+    <a href="." class="reload ml-2 font-semibold underline hover:text-white">Reload</a>
+    <span class="dismiss ml-4 cursor-pointer text-zinc-400 hover:text-white">🗙</span>
 </div>
+
 @code {
-    // Hold a reference to the component so we can call its Open() method
     private FinanceTracker.Shared.Components.AddTransactionModal _addModal = default!;
 
     private void OpenAddModal()

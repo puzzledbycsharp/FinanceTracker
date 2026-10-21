@@ -1,45 +1,99 @@
 ﻿@using Microsoft.Extensions.Configuration
-
 @inject IConfiguration Configuration
 
-<div class="nav-item px-3">
-    <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-        <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Dashboard
-    </NavLink>
-</div>
+<nav class="flex gap-2 overflow-x-auto p-4 md:flex-col scrollbar-hide">
 
-@if (!isDemoMode)
-{
-    <div class="nav-item px-3">
-        <NavLink class="nav-link" href="import">
-            <span class="bi bi-upload-nav-menu" aria-hidden="true"></span> Import Data
+    <NavLink class="nav-btn" href="" Match="NavLinkMatch.All">
+        <i class="bi bi-grid-1x2-fill"></i>
+        <span>Dashboard</span>
+    </NavLink>
+
+    @if (!isDemoMode)
+    {
+        <NavLink class="nav-btn" href="import">
+            <i class="bi bi-cloud-arrow-up-fill"></i>
+            <span>Import Data</span>
         </NavLink>
-    </div>
-}
+    }
 
-<div class="nav-item px-3">
-    <NavLink class="nav-link" href="transactions">
-        <span class="bi bi-list-ul-nav-menu" aria-hidden="true"></span> Transactions
+    <NavLink class="nav-btn" href="transactions">
+        <i class="bi bi-receipt"></i>
+        <span>Transactions</span>
     </NavLink>
-</div>
 
-<div class="nav-item px-3">
-    <NavLink class="nav-link" href="budgets">
-        <span class="bi bi-list-ul-nav-menu" aria-hidden="true"></span> Budgets
+    <NavLink class="nav-btn" href="budgets">
+        <i class="bi bi-pie-chart-fill"></i>
+        <span>Budgets</span>
     </NavLink>
-</div>
 
-<div class="nav-item px-3">
-    <NavLink class="nav-link" href="weekly">
-        <span class="bi bi-calendar-week-fill" aria-hidden="true"></span> Weekly Sprint
+    <NavLink class="nav-btn" href="weekly">
+        <i class="bi bi-calendar2-week-fill"></i>
+        <span>Weekly Sprint</span>
     </NavLink>
-</div>
 
-<div class="nav-item px-3">
-    <NavLink class="nav-link" href="settings">
-        <span class="bi bi-gear-fill-nav-menu" aria-hidden="true"></span> Settings
+    <NavLink class="nav-btn" href="settings">
+        <i class="bi bi-gear-fill"></i>
+        <span>Settings</span>
     </NavLink>
-</div>
+
+</nav>
+
+<style>
+    /* Hide scrollbar for a clean mobile horizontal scroll */
+    .scrollbar-hide::-webkit-scrollbar {
+        display: none;
+    }
+
+    .scrollbar-hide {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+    }
+
+    /* Premium Glassmorphic Button Base */
+    .nav-btn {
+        display: flex;
+        align-items: center;
+        gap: 0.875rem;
+        border-radius: 0.75rem;
+        padding: 0.75rem 1rem;
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: #a1a1aa; /* text-zinc-400 */
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        text-decoration: none;
+        flex-shrink: 0;
+        border: 1px solid transparent;
+    }
+
+        .nav-btn i {
+            font-size: 1.125rem;
+            transition: color 0.2s ease-in-out;
+        }
+
+        /* Standard Hover State */
+        .nav-btn:hover {
+            background-color: rgba(255, 255, 255, 0.05); /* bg-white/5 */
+            color: #ffffff;
+        }
+
+            .nav-btn:hover i {
+                color: #22d3ee; /* text-cyan-400 */
+            }
+
+        /* Active State (Automatically applied by Blazor's NavLink component) */
+        .nav-btn.active {
+            background-color: rgba(6, 182, 212, 0.1); /* bg-cyan-500/10 */
+            color: #22d3ee;
+            border: 1px solid rgba(6, 182, 212, 0.3); /* border-cyan-500/30 */
+            font-weight: 700;
+            box-shadow: inset 0 0 12px rgba(6, 182, 212, 0.05);
+        }
+
+            .nav-btn.active i {
+                color: #22d3ee;
+                text-shadow: 0 0 15px rgba(6, 182, 212, 0.6);
+            }
+</style>
 
 @code {
     private bool isDemoMode;

@@ -5,78 +5,109 @@
 @using Microsoft.EntityFrameworkCore
 @inject FinanceDbContext DbContext
 
-<div class="container mt-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2>Settings & Categories</h2>
+<div class="mx-auto max-w-7xl">
+    <!-- Header -->
+    <div class="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <h2 class="text-2xl font-bold tracking-tight text-white m-0">Settings & Categories</h2>
     </div>
 
-    <div class="row">
-        <!-- Add New Category Form -->
-        <div class="col-md-4 mb-4">
-            <div class="card shadow-sm">
-                <div class="card-header bg-light">Add New Category</div>
-                <div class="card-body">
-                    <div class="mb-3">
-                        <label class="form-label">Category Name</label>
-                        <input type="text" class="form-control" @bind="_newName" placeholder="e.g., Pet Care" />
+    <div class="grid gap-8 lg:grid-cols-12">
+        <!-- Add New Category Form (Left Column) -->
+        <div class="lg:col-span-4">
+            <div class="rounded-2xl border border-white/5 bg-zinc-900/50 shadow-2xl backdrop-blur-md">
+                <div class="border-b border-white/5 px-6 py-4">
+                    <h5 class="m-0 text-lg font-bold text-white">Add New Category</h5>
+                </div>
+                <div class="flex flex-col gap-6 p-6">
+
+                    <div>
+                        <label class="mb-2 block text-sm font-medium text-zinc-400">Category Name</label>
+                        <input type="text" class="w-full rounded-lg border border-white/10 bg-zinc-950 px-4 py-2.5 text-sm text-white outline-none placeholder-zinc-600 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500" @bind="_newName" placeholder="e.g., Pet Care" />
                     </div>
-                    <div class="mb-3 d-flex align-items-center gap-3">
-                        <label class="form-label mb-0">Color</label>
-                        <input type="color" class="form-control form-control-color" @bind="_newColor" title="Choose your color">
+
+                    <div>
+                        <label class="mb-2 block text-sm font-medium text-zinc-400">Color</label>
+                        <div class="flex items-center gap-4 rounded-lg border border-white/5 bg-zinc-950/50 p-2 shadow-inner">
+                            <input type="color" class="h-10 w-16 cursor-pointer appearance-none rounded border-0 bg-transparent p-0 [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:rounded [&::-webkit-color-swatch]:border-white/10" @bind="_newColor" title="Choose your color">
+                            <span class="text-sm font-medium text-zinc-300 uppercase tracking-widest">@_newColor</span>
+                        </div>
                     </div>
-                    <div class="form-check form-switch mb-4">
-                        <input class="form-check-input" type="checkbox" role="switch" id="fixedBillSwitch" @bind="_newIsFixedBill">
-                        <label class="form-check-label" for="fixedBillSwitch">
-                            <strong>Is Fixed Bill?</strong>
-                            <small class="d-block text-muted">Exclude from weekly discretionary spend tracking.</small>
+
+                    <!-- Tailwind Custom Toggle Switch -->
+                    <div class="flex items-center justify-between rounded-lg border border-white/5 bg-zinc-950/50 p-4 shadow-inner">
+                        <div>
+                            <strong class="block text-sm font-medium text-zinc-200">Is Fixed Bill?</strong>
+                            <small class="block text-xs text-zinc-500 mt-0.5">Exclude from weekly discretionary spend.</small>
+                        </div>
+                        <label class="relative inline-flex cursor-pointer items-center">
+                            <input type="checkbox" class="peer sr-only" @bind="_newIsFixedBill" />
+                            <div class="peer h-6 w-11 rounded-full bg-zinc-700 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-cyan-500 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-cyan-500 peer-focus:ring-offset-2 peer-focus:ring-offset-zinc-900"></div>
                         </label>
                     </div>
-                    <button class="btn btn-primary w-100" @onclick="AddCategoryAsync" disabled="@string.IsNullOrWhiteSpace(_newName)">
+
+                    <button class="mt-2 w-full rounded-lg bg-gradient-to-r from-cyan-500 to-blue-600 px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-cyan-500/25 transition-all hover:scale-[1.02] disabled:scale-100 disabled:opacity-50 disabled:grayscale"
+                            @onclick="AddCategoryAsync"
+                            disabled="@string.IsNullOrWhiteSpace(_newName)">
                         Add Category
                     </button>
                 </div>
             </div>
         </div>
 
-        <!-- Manage Existing Categories -->
-        <div class="col-md-8">
-            <div class="card shadow-sm">
-                <div class="card-header bg-light d-flex justify-content-between align-items-center">
-                    <span class="mb-0">Active Categories</span>
-                    <span class="badge bg-secondary rounded-pill">@_categories.Count Total</span>
+        <!-- Manage Existing Categories (Right Column) -->
+        <div class="lg:col-span-8">
+            <div class="overflow-hidden rounded-2xl border border-white/5 bg-zinc-900/50 shadow-2xl backdrop-blur-md">
+                <div class="flex items-center justify-between border-b border-white/5 px-6 py-4">
+                    <h5 class="m-0 text-lg font-bold text-white">Active Categories</h5>
+                    <span class="rounded border border-white/5 bg-white/10 px-2.5 py-1 text-xs font-semibold text-zinc-400">@_categories.Count Total</span>
                 </div>
-                <div class="card-body p-0">
-                    <ul class="list-group list-group-flush">
+                <div class="p-0">
+                    <div class="flex flex-col divide-y divide-white/5">
                         @foreach (var cat in _categories.OrderByDescending(c => c.IsFixedBill).ThenBy(c => c.Name))
                         {
-                            <li class="list-group-item d-flex justify-content-between align-items-center py-3">
-                                <div class="d-flex align-items-center gap-3">
-                                    <div style="width: 20px; height: 20px; border-radius: 4px; background-color: @cat.HexColor;"></div>
-                                    <span class="fw-bold">@cat.Name</span>
+                            <div class="group flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-6 py-4 transition-colors hover:bg-white/5">
+
+                                <!-- Category Details -->
+                                <div class="flex items-center gap-4">
+                                    <div class="h-8 w-8 rounded-lg shadow-inner flex items-center justify-center border border-white/10" style="background-color: @cat.HexColor;">
+                                        <div class="h-2 w-2 rounded-full bg-white/50 blur-[1px]"></div>
+                                    </div>
+                                    <span class="text-base font-medium text-zinc-200 transition-colors group-hover:text-cyan-400">@cat.Name</span>
 
                                     @if (cat.IsFixedBill)
                                     {
-                                        <span class="badge bg-light text-secondary border"><i class="bi bi-lock-fill"></i> Fixed Bill</span>
+                                        <span class="rounded border border-zinc-500/30 bg-zinc-500/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+                                            <i class="bi bi-lock-fill mr-1"></i> Fixed Bill
+                                        </span>
                                     }
                                     else
                                     {
-                                        <span class="badge bg-light text-success border"><i class="bi bi-wallet2"></i> Discretionary</span>
+                                        <span class="rounded border border-cyan-500/30 bg-cyan-500/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-cyan-400">
+                                            <i class="bi bi-wallet2 mr-1"></i> Discretionary
+                                        </span>
                                     }
                                 </div>
-                                <div class="d-flex align-items-center gap-3">
-                                    <div class="form-check form-switch m-0">
-                                        <input class="form-check-input" type="checkbox" role="switch"
+
+                                <!-- Category Actions -->
+                                <div class="flex items-center gap-6 sm:ml-auto">
+                                    <!-- Inline Toggle Switch -->
+                                    <label class="relative inline-flex cursor-pointer items-center" title="Toggle Fixed Bill Status">
+                                        <input type="checkbox" class="peer sr-only"
                                                checked="@cat.IsFixedBill"
-                                               @onchange="@(e => ToggleFixedBillAsync(cat, (bool)(e.Value ?? false)))"
-                                               title="Toggle Fixed Bill Status">
-                                    </div>
-                                    <button class="btn btn-sm btn-outline-danger border-0" @onclick="() => DeleteCategoryAsync(cat)" title="Delete Category">
-                                        <i class="bi bi-trash"></i>
+                                               @onchange="@(e => ToggleFixedBillAsync(cat, (bool)(e.Value ?? false)))" />
+                                        <div class="peer h-5 w-9 rounded-full bg-zinc-700 after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-cyan-500 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none"></div>
+                                    </label>
+
+                                    <!-- Delete Button -->
+                                    <button class="flex h-8 w-8 items-center justify-center rounded-lg border border-transparent text-zinc-500 transition-colors hover:border-rose-500/30 hover:bg-rose-500/10 hover:text-rose-400"
+                                            @onclick="() => DeleteCategoryAsync(cat)"
+                                            title="Delete Category">
+                                        <i class="bi bi-trash text-lg"></i>
                                     </button>
                                 </div>
-                            </li>
+                            </div>
                         }
-                    </ul>
+                    </div>
                 </div>
             </div>
         </div>
@@ -88,7 +119,7 @@
 
     // Form States
     private string _newName = string.Empty;
-    private string _newColor = "#0d6efd"; // Default Bootstrap Blue
+    private string _newColor = "#06b6d4"; // FinTech Cyan default instead of Bootstrap Blue
     private bool _newIsFixedBill = false;
 
     protected override async Task OnInitializedAsync()
@@ -123,7 +154,7 @@
         // Reset form
         _newName = string.Empty;
         _newIsFixedBill = false;
-        _newColor = "#0d6efd";
+        _newColor = "#06b6d4";
 
         await LoadCategoriesAsync();
     }
