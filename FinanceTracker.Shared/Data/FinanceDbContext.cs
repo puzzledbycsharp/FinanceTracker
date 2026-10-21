@@ -34,9 +34,9 @@ namespace FinanceTracker.Shared.Data
 
             // Seed User Profiles
             modelBuilder.Entity<UserProfile>().HasData(
-                new UserProfile { Id = 1, Name = "Shared / Household", WeeklyBudgetLimit = 400m },
-                new UserProfile { Id = 2, Name = "Zachary", WeeklyBudgetLimit = 150m },
-                new UserProfile { Id = 3, Name = "Jadyn", WeeklyBudgetLimit = 150m }
+                new UserProfile { Id = 1, Name = "Shared / Household", WeeklyBudgetLimit = 600m },
+                new UserProfile { Id = 2, Name = "Justin", WeeklyBudgetLimit = 300m },
+                new UserProfile { Id = 3, Name = "Mary", WeeklyBudgetLimit = 300m }
             );
 
             // Seed default rules from the separate SeedData class
@@ -50,6 +50,7 @@ namespace FinanceTracker.Shared.Data
 
                     new CategoryConfig { Id = Guid.NewGuid(), Name = "Groceries", IsFixedBill = false, HexColor = "#198754" },
                     new CategoryConfig { Id = Guid.NewGuid(), Name = "Dining & Coffee", IsFixedBill = false, HexColor = "#fd7e14" },
+                    new CategoryConfig { Id = Guid.NewGuid(), Name = "Fast Food", IsFixedBill = false, HexColor = "#dd7e14" },
                     new CategoryConfig { Id = Guid.NewGuid(), Name = "Gas & Transit", IsFixedBill = false, HexColor = "#ffc107" },
                     new CategoryConfig { Id = Guid.NewGuid(), Name = "Shopping", IsFixedBill = false, HexColor = "#0dcaf0" },
                     new CategoryConfig { Id = Guid.NewGuid(), Name = "Health & Fitness", IsFixedBill = false, HexColor = "#dc3545" },
