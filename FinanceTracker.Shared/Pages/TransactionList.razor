@@ -4,9 +4,11 @@
 @using FinanceTracker.Shared.Data
 @using FinanceTracker.Shared.Services
 @using Microsoft.EntityFrameworkCore
+@inject TransactionStateService TxStateService
 @inject FinanceDbContext DbContext
 @inject CategoryMemoryService MemoryService
 @inject NavigationManager Navigation
+@implements IDisposable
 
 <div class="mx-auto max-w-7xl">
     <!-- Header & Actions -->
@@ -35,13 +37,13 @@
     {
         <div class="rounded-2xl border border-white/5 bg-zinc-900/50 p-12 text-center shadow-2xl backdrop-blur-md">
             <i class="bi bi-inbox text-4xl text-zinc-600 mb-4 block"></i>
-            <p class="text-lg font-medium text-zinc-400 m-0">No transactions found. Go import some data!</p>
+            <p class="m-0 text-lg font-medium text-zinc-400">No transactions found. Go import some data!</p>
         </div>
     }
     else
     {
         <!-- Premium Glassmorphic Data Grid -->
-        <div class="overflow-hidden rounded-2xl border border-white/5 bg-zinc-900/50 shadow-2xl backdrop-blur-md mb-12">
+        <div class="mb-12 overflow-hidden rounded-2xl border border-white/5 bg-zinc-900/50 shadow-2xl backdrop-blur-md">
             <div class="overflow-x-auto">
                 <table class="w-full text-left text-sm text-zinc-300">
                     <thead class="border-b border-white/10 bg-zinc-950/50 text-xs font-semibold uppercase tracking-wider text-zinc-400">
@@ -55,11 +57,12 @@
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-white/5">
-                        @foreach (var txn in _transactions)
+                        <!-- We now iterate over _pagedTransactions instead of all transactions -->
+                        @foreach (var txn in _pagedTransactions)
                         {
                             var isParent = txn.IsSplit;
                             var isChild = txn.ParentTransactionId != null;
-                            var rowClass = isParent ? "bg-zinc-950/40 text-zinc-500" : (isChild ? "bg-white/[0.02]" : "hover:bg-white/5 transition-colors");
+                            var rowClass = isParent ? "bg-zinc-950/40 text-zinc-500" : (isChild ? "bg-white/[0.02]" : "transition-colors hover:bg-white/5");
 
                             <tr class="@rowClass">
                                 <td class="whitespace-nowrap px-6 py-4 font-medium @(isParent ? "text-zinc-600" : "text-zinc-400")">
@@ -88,7 +91,7 @@
                                     @txn.Amount.ToString("C")
                                 </td>
 
-                                <td class="px-6 py-4 w-48">
+                                <td class="w-48 px-6 py-4">
                                     @if (txn.IsSplit)
                                     {
                                         <span class="text-xs font-medium italic text-zinc-600">Split into multiple</span>
@@ -110,7 +113,7 @@
                                 <td class="px-6 py-4 text-center">
                                     @if (!txn.IsSplit && txn.ParentTransactionId == null && txn.Type == "Expense")
                                     {
-                                        <button class="flex h-8 w-8 items-center justify-center mx-auto rounded-lg border border-white/10 bg-zinc-800 text-zinc-400 transition-colors hover:border-cyan-500/50 hover:bg-cyan-500/10 hover:text-cyan-400"
+                                        <button class="mx-auto flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-zinc-800 text-zinc-400 transition-colors hover:border-cyan-500/50 hover:bg-cyan-500/10 hover:text-cyan-400"
                                                 @onclick="() => OpenSplitModal(txn)"
                                                 title="Split Transaction">
                                             <i class="bi bi-scissors"></i>
@@ -122,6 +125,39 @@
                     </tbody>
                 </table>
             </div>
+
+            <!-- Pagination Footer -->
+            <div class="flex flex-col items-center justify-between border-t border-white/10 bg-zinc-950/30 px-6 py-4 sm:flex-row">
+                <div class="mb-4 flex items-center gap-3 sm:mb-0">
+                    <span class="text-sm font-medium text-zinc-400">Rows per page:</span>
+                    <select class="cursor-pointer rounded-lg border border-white/10 bg-zinc-900 px-2 py-1 text-sm text-white shadow-inner outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500" @onchange="OnPageSizeChanged">
+                        @foreach (var size in _pageSizeOptions)
+                        {
+                            <option value="@size" selected="@(size == _pageSize)">@size</option>
+                        }
+                    </select>
+                    <span class="ml-4 text-sm font-medium text-zinc-500">
+                        Showing @((_currentPage - 1) * _pageSize + 1) to @(Math.Min(_currentPage * _pageSize, _transactions.Count)) of @_transactions.Count
+                    </span>
+                </div>
+
+                <div class="flex items-center gap-2">
+                    <button class="flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-zinc-800 text-zinc-400 transition-colors hover:bg-zinc-700 hover:text-white disabled:pointer-events-none disabled:opacity-50"
+                            @onclick="() => OnPageChanged(_currentPage - 1)"
+                            disabled="@(_currentPage <= 1)">
+                        <i class="bi bi-chevron-left"></i>
+                    </button>
+                    <span class="px-4 text-sm font-medium text-white">
+                        Page @_currentPage of @TotalPages
+                    </span>
+                    <button class="flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-zinc-800 text-zinc-400 transition-colors hover:bg-zinc-700 hover:text-white disabled:pointer-events-none disabled:opacity-50"
+                            @onclick="() => OnPageChanged(_currentPage + 1)"
+                            disabled="@(_currentPage >= TotalPages || TotalPages == 0)">
+                        <i class="bi bi-chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+
         </div>
     }
 </div>
@@ -129,12 +165,12 @@
 <!-- SPLIT MODAL OVERLAY -->
 @if (_showSplitModal && _transactionToSplit != null)
 {
-    <div class="fixed inset-0 z-[1050] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+    <div class="fixed inset-0 z-[1050] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
         <div class="w-full max-w-3xl overflow-hidden rounded-2xl border border-white/10 bg-zinc-900 shadow-2xl">
 
             <div class="flex items-center justify-between border-b border-white/10 bg-zinc-950/50 px-6 py-4">
-                <h5 class="text-lg font-bold text-white m-0">Split Transaction</h5>
-                <button type="button" class="text-zinc-400 hover:text-white transition-colors" @onclick="CloseSplitModal">
+                <h5 class="m-0 text-lg font-bold text-white">Split Transaction</h5>
+                <button type="button" class="text-zinc-400 transition-colors hover:text-white" @onclick="CloseSplitModal">
                     <i class="bi bi-x-lg text-xl"></i>
                 </button>
             </div>
@@ -142,9 +178,9 @@
             <div class="p-6">
                 <div class="mb-6 flex items-center justify-between rounded-xl border border-white/5 bg-zinc-800/50 p-4 shadow-inner">
                     <div>
-                        <div class="text-xs font-semibold tracking-wide text-zinc-500 uppercase mb-1">Original Transaction</div>
+                        <div class="mb-1 text-xs font-semibold uppercase tracking-wide text-zinc-500">Original Transaction</div>
                         <div class="text-base font-medium text-white">@_transactionToSplit.CleanedDescription</div>
-                        <div class="text-sm text-zinc-400 mt-1"><i class="bi bi-credit-card mr-1"></i> @_transactionToSplit.Account</div>
+                        <div class="mt-1 text-sm text-zinc-400"><i class="bi bi-credit-card mr-1"></i> @_transactionToSplit.Account</div>
                     </div>
                     <div class="text-right">
                         <strong class="text-2xl font-bold text-white">@_transactionToSplit.Amount.ToString("C")</strong>
@@ -152,12 +188,12 @@
                 </div>
 
                 <div class="overflow-x-auto">
-                    <table class="w-full text-left text-sm text-zinc-300 mb-4">
-                        <thead class="text-xs font-semibold uppercase tracking-wider text-zinc-500 border-b border-white/10">
+                    <table class="mb-4 w-full text-left text-sm text-zinc-300">
+                        <thead class="border-b border-white/10 text-xs font-semibold uppercase tracking-wider text-zinc-500">
                             <tr>
                                 <th class="pb-3 pr-4">Category</th>
-                                <th class="pb-3 px-4 w-32">Amount ($)</th>
-                                <th class="pb-3 px-4">Note (Optional)</th>
+                                <th class="w-32 px-4 pb-3">Amount ($)</th>
+                                <th class="px-4 pb-3">Note (Optional)</th>
                                 <th class="pb-3 pl-4 text-center"></th>
                             </tr>
                         </thead>
@@ -174,14 +210,14 @@
                                             }
                                         </select>
                                     </td>
-                                    <td class="py-3 px-4">
+                                    <td class="px-4 py-3">
                                         <input type="number" class="w-full rounded-lg border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500" @bind="split.Amount" step="0.01" />
                                     </td>
-                                    <td class="py-3 px-4">
-                                        <input type="text" class="w-full rounded-lg border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 placeholder-zinc-600" @bind="split.Description" placeholder="e.g., Groceries" />
+                                    <td class="px-4 py-3">
+                                        <input type="text" class="w-full rounded-lg border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white placeholder-zinc-600 outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500" @bind="split.Description" placeholder="e.g., Groceries" />
                                     </td>
-                                    <td class="py-3 pl-4 text-center">
-                                        <button class="flex h-8 w-8 mx-auto items-center justify-center rounded-lg border border-transparent text-zinc-500 transition-colors hover:border-rose-500/30 hover:bg-rose-500/10 hover:text-rose-400" @onclick="() => _splitItems.Remove(split)">
+                                    <td class="pl-4 py-3 text-center">
+                                        <button class="mx-auto flex h-8 w-8 items-center justify-center rounded-lg border border-transparent text-zinc-500 transition-colors hover:border-rose-500/30 hover:bg-rose-500/10 hover:text-rose-400" @onclick="() => _splitItems.Remove(split)">
                                             <i class="bi bi-trash"></i>
                                         </button>
                                     </td>
@@ -191,26 +227,26 @@
                     </table>
                 </div>
 
-                <button class="flex items-center gap-2 text-sm font-semibold text-cyan-400 hover:text-cyan-300 transition-colors" @onclick="AddSplitRow">
+                <button class="flex items-center gap-2 text-sm font-semibold text-cyan-400 transition-colors hover:text-cyan-300" @onclick="AddSplitRow">
                     <i class="bi bi-plus-circle-fill"></i> Add Split Row
                 </button>
 
-                <div class="mt-8 flex flex-col sm:flex-row items-center justify-between border-t border-white/10 pt-6">
+                <div class="mt-8 flex flex-col items-center justify-between border-t border-white/10 pt-6 sm:flex-row">
                     @{
                         decimal totalSplit = _splitItems.Sum(s => s.Amount);
                         decimal remaining = _transactionToSplit.Amount - totalSplit;
                     }
-                    <div class="mb-4 sm:mb-0 flex items-center gap-3">
+                    <div class="mb-4 flex items-center gap-3 sm:mb-0">
                         <span class="text-sm font-medium text-zinc-400">Remaining to assign:</span>
                         <span class="rounded-lg border px-3 py-1 text-lg font-bold @(remaining == 0 ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400" : "border-rose-500/30 bg-rose-500/10 text-rose-400")">
                             @remaining.ToString("C")
                         </span>
                     </div>
 
-                    <div class="flex gap-3 w-full sm:w-auto">
-                        <button class="flex-1 sm:flex-none rounded-lg border border-white/10 bg-zinc-800 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-zinc-700" @onclick="CloseSplitModal">Cancel</button>
+                    <div class="flex w-full gap-3 sm:w-auto">
+                        <button class="flex-1 rounded-lg border border-white/10 bg-zinc-800 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-zinc-700 sm:flex-none" @onclick="CloseSplitModal">Cancel</button>
 
-                        <button class="flex-1 sm:flex-none rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-400 px-6 py-2.5 text-sm font-bold text-zinc-950 transition-all hover:scale-105 disabled:opacity-50 disabled:hover:scale-100 disabled:grayscale"
+                        <button class="flex-1 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-400 px-6 py-2.5 text-sm font-bold text-zinc-950 transition-all hover:scale-105 disabled:scale-100 disabled:opacity-50 disabled:grayscale sm:flex-none"
                                 @onclick="SaveSplitAsync"
                                 disabled="@(remaining != 0 || _splitItems.Any(s => string.IsNullOrEmpty(s.Category)))">
                             Save Splits
@@ -230,11 +266,15 @@
     [SupplyParameterFromQuery] public decimal? MaxAmount { get; set; }
 
     private bool _isLoading = true;
-    private List<Transaction> _transactions = new();
+    private List<Transaction> _transactions = new(); // The fully filtered list
+    private List<Transaction> _pagedTransactions = new(); // The current page being shown
     private List<string> _availableCategories = new();
 
-    // Static in-memory cache to eliminate redundant database roundtrips on tab switching
-    private static List<Transaction>? _masterCache = null;
+    // Pagination State
+    private int _currentPage = 1;
+    private int _pageSize = 25;
+    private List<int> _pageSizeOptions = new() { 10, 25, 50, 100 };
+    private int TotalPages => (int)Math.Ceiling((double)_transactions.Count / _pageSize);
 
     // Modal State
     private bool _showSplitModal = false;
@@ -248,29 +288,40 @@
         public string Description { get; set; } = string.Empty;
     }
 
-    protected override async Task OnInitializedAsync()
+    protected override void OnInitialized()
     {
-        _availableCategories = await DbContext.CategoryConfigs.Select(c => c.Name).OrderBy(n => n).ToListAsync();
-        await LoadTransactionsAsync();
+        // 1. Immediately paint the screen
+        _isLoading = true;
+        TxStateService.OnStateChanged += HandleStateChanged;
     }
 
-    protected override async Task OnParametersSetAsync() => await LoadTransactionsAsync();
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // 2. Fetch categories and transactions in the background
+            _availableCategories = await DbContext.CategoryConfigs.Select(c => c.Name).OrderBy(n => n).ToListAsync();
+            await LoadTransactionsAsync();
+            StateHasChanged();
+        }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // Prevent double loading on first render
+        if (!_isLoading)
+        {
+            await LoadTransactionsAsync();
+        }
+    }
 
     private async Task LoadTransactionsAsync()
     {
         _isLoading = true;
 
-        // If master cache is empty, load all records from DB once
-        if (_masterCache == null)
-        {
-            _masterCache = await DbContext.Transactions
-                .OrderByDescending(t => t.Date)
-                .ThenBy(t => t.Id)
-                .ToListAsync();
-        }
-
-        // Filter the cached list in-memory instantly without DB overhead
-        var query = _masterCache.AsEnumerable();
+        // Pull instantly from the State Service Gatekeeper
+        var allTxns = await TxStateService.GetTransactionsAsync();
+        var query = allTxns.AsEnumerable();
 
         if (!string.IsNullOrEmpty(Period))
         {
@@ -305,14 +356,65 @@
         }
 
         _transactions = query.ToList();
+
+        // Reset to page 1 whenever filters change, then apply pagination
+        _currentPage = 1;
+        UpdatePagedTransactions();
+
         _isLoading = false;
+    }
+
+    // --- Pagination Logic ---
+    private void UpdatePagedTransactions()
+    {
+        if (_currentPage > TotalPages && TotalPages > 0) _currentPage = TotalPages;
+
+        _pagedTransactions = _transactions
+                    .Skip((_currentPage - 1) * _pageSize)
+                    .Take(_pageSize)
+                    .ToList();
+    }
+
+    private void OnPageChanged(int newPage)
+    {
+        if (newPage >= 1 && newPage <= TotalPages)
+        {
+            _currentPage = newPage;
+            UpdatePagedTransactions();
+        }
+    }
+
+    private void OnPageSizeChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out int newSize))
+        {
+            _pageSize = newSize;
+            _currentPage = 1; // Return to first page when changing page size
+            UpdatePagedTransactions();
+        }
+    }
+
+    // --- State Reactive Methods ---
+    private void HandleStateChanged()
+    {
+        // When data updates elsewhere, silently reload local view without spinning
+        InvokeAsync(async () =>
+        {
+            await LoadTransactionsAsync();
+            StateHasChanged();
+        });
+    }
+
+    public void Dispose()
+    {
+        TxStateService.OnStateChanged -= HandleStateChanged;
     }
 
     private async Task ForceRefreshAsync()
     {
-        // Invalidate cache and re-fetch from database
-        _masterCache = null;
-        await LoadTransactionsAsync();
+        _isLoading = true;
+        await TxStateService.ForceRefreshAsync();
+        // HandleStateChanged will naturally fire and remove the spinner
     }
 
     private void ClearFilters() => Navigation.NavigateTo("/transactions");
@@ -320,16 +422,13 @@
     private async Task UpdateCategoryAsync(Transaction txn, string? newCategory)
     {
         if (string.IsNullOrWhiteSpace(newCategory)) return;
-        txn.Category = newCategory;
-        DbContext.Transactions.Update(txn);
-        await DbContext.SaveChangesAsync();
-        await MemoryService.LearnCategoryAsync(txn.CleanedDescription, newCategory);
 
-        // Update the item in the in-memory cache directly
-        var cachedTxn = _masterCache?.FirstOrDefault(t => t.Id == txn.Id);
-        if (cachedTxn != null) cachedTxn.Category = newCategory;
+        // Push the update strictly through the centralized state service
+        await TxStateService.UpdateCategoryAsync(txn, newCategory);
+        await MemoryService.LearnCategoryAsync(txn.CleanedDescription, newCategory);
     }
 
+    // --- Split Modal Logic ---
     private void OpenSplitModal(Transaction txn)
     {
         _transactionToSplit = txn;
@@ -351,13 +450,10 @@
     {
         if (_transactionToSplit == null) return;
 
-        _transactionToSplit.IsSplit = true;
-        _transactionToSplit.Category = "Split";
-        DbContext.Transactions.Update(_transactionToSplit);
-
+        var children = new List<Transaction>();
         foreach (var split in _splitItems)
         {
-            var childTxn = new Transaction
+            children.Add(new Transaction
             {
                 Id = Guid.NewGuid(),
                 Account = _transactionToSplit.Account,
@@ -371,17 +467,12 @@
                     ? _transactionToSplit.CleanedDescription
                     : $"{_transactionToSplit.CleanedDescription} ({split.Description})",
                 ParentTransactionId = _transactionToSplit.Id
-            };
-
-            await DbContext.Transactions.AddAsync(childTxn);
-            await MemoryService.LearnCategoryAsync(childTxn.CleanedDescription, split.Category);
+            });
+            await MemoryService.LearnCategoryAsync(children.Last().CleanedDescription, split.Category);
         }
 
-        await DbContext.SaveChangesAsync();
+        // Push everything through the centralized gatekeeper
+        await TxStateService.AddSplitTransactionsAsync(_transactionToSplit, children);
         CloseSplitModal();
-
-        // Invalidate cache so the new split children load correctly
-        _masterCache = null;
-        await LoadTransactionsAsync();
     }
 }

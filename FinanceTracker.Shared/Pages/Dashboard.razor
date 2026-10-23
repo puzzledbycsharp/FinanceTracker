@@ -7,6 +7,8 @@
 @inject NavigationManager Navigation
 @inject FinancialInsightService InsightService
 @inject FinanceTracker.Shared.Services.GamificationEngineService GamificationEngine
+@inject TransactionStateService TxStateService
+@implements IDisposable
 
 <div class="mx-auto max-w-7xl">
     <!-- Dashboard Header -->
@@ -21,7 +23,7 @@
             }
         </div>
 
-        @if (!_isLoading && _availablePeriods.Any())
+        @if (_availablePeriods.Any())
         {
             <div class="flex items-center gap-3">
                 <label for="monthSelect" class="text-sm font-medium text-zinc-400">Period:</label>
@@ -37,304 +39,321 @@
         }
     </div>
 
-    @if (_isLoading)
-    {
-        <div class="flex items-center justify-center p-12">
-            <div class="h-8 w-8 animate-spin rounded-full border-b-2 border-t-2 border-cyan-500"></div>
-        </div>
-    }
-    else
-    {
-        <!-- Premium FinTech Summary Cards -->
-        <div class="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <!-- Premium FinTech Summary Cards -->
+    <div class="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
 
-            <!-- Total Income -->
-            <div class="flex flex-col justify-between rounded-2xl border border-white/5 bg-zinc-900/50 p-6 shadow-2xl backdrop-blur-md">
-                <h6 class="text-sm font-medium text-zinc-400">Total Income</h6>
-                <div class="mt-4 text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-500">
-                    @_monthlyIncome.ToString("C")
-                </div>
+        <!-- Total Income -->
+        <div class="flex flex-col justify-between rounded-2xl border border-white/5 bg-zinc-900/50 p-6 shadow-2xl backdrop-blur-md relative min-h-[120px]">
+            @if (_isLoading)
+            {
+                <div class="absolute inset-0 flex items-center justify-center bg-zinc-950/40 backdrop-blur-xs rounded-2xl"><div class="h-5 w-5 animate-spin rounded-full border-b-2 border-cyan-400"></div></div>
+            }
+            <h6 class="text-sm font-medium text-zinc-400">Total Income</h6>
+            <div class="mt-4 text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-500">
+                @_monthlyIncome.ToString("C")
             </div>
+        </div>
 
-            <!-- Expected Bills -->
-            <div class="flex flex-col justify-between rounded-2xl border border-white/5 bg-zinc-900/50 p-6 shadow-2xl backdrop-blur-md relative overflow-hidden">
+        <!-- Expected Bills -->
+        <div class="flex flex-col justify-between rounded-2xl border border-white/5 bg-zinc-900/50 p-6 shadow-2xl backdrop-blur-md relative min-h-[120px]">
+            <!-- Isolate the overflow-hidden to just the background glow -->
+            <div class="pointer-events-none absolute inset-0 overflow-hidden rounded-2xl">
                 <div class="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-white/5 blur-2xl"></div>
-                <div class="flex items-center justify-between relative z-10">
-                    <h6 class="text-sm font-medium text-zinc-400">Expected Bills</h6>
-                    <FinanceTracker.Shared.Components.InfoTooltip Text="Estimated fixed bills (based on your 2-month average) that haven't hit your account yet this month." />
-                </div>
-                <div class="relative z-10">
-                    <div class="mt-4 text-3xl font-bold text-zinc-300">
-                        @_remainingExpectedBills.ToString("C")
-                    </div>
-                    <p class="mt-1 text-xs text-zinc-500">@_paidFixedBills.ToString("C") paid so far</p>
-                </div>
             </div>
 
-            <!-- Total Expenses -->
-            <div class="flex flex-col justify-between rounded-2xl border border-white/5 bg-zinc-900/50 p-6 shadow-2xl backdrop-blur-md">
-                <h6 class="text-sm font-medium text-zinc-400">Total Expenses</h6>
-                <div class="mt-4 text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-rose-400 to-fuchsia-500">
-                    @_monthlyExpenses.ToString("C")
-                </div>
-            </div>
+            @if (_isLoading)
+            {
+                <div class="absolute inset-0 z-20 flex items-center justify-center rounded-2xl bg-zinc-950/40 backdrop-blur-xs"><div class="h-5 w-5 animate-spin rounded-full border-b-2 border-cyan-400"></div></div>
+            }
 
-            <!-- Safe to Spend (Dynamic Colors) -->
-            <div class="flex flex-col justify-between rounded-2xl border @(_safeToSpend >= 0 ? "border-cyan-500/30 bg-cyan-500/5" : "border-rose-500/30 bg-rose-500/5") p-6 shadow-2xl backdrop-blur-md relative overflow-hidden">
+            <div class="relative z-10 flex items-center justify-between">
+                <h6 class="text-sm font-medium text-zinc-400">Expected Bills</h6>
+                <FinanceTracker.Shared.Components.InfoTooltip Text="Estimated fixed bills (based on your 2-month average) that haven't hit your account yet this month." />
+            </div>
+            <div class="relative z-10">
+                <div class="mt-4 text-3xl font-bold text-zinc-300">
+                    @_remainingExpectedBills.ToString("C")
+                </div>
+                <p class="mt-1 text-xs text-zinc-500">@_paidFixedBills.ToString("C") paid so far</p>
+            </div>
+        </div>
+
+        <!-- Total Expenses -->
+        <div class="flex flex-col justify-between rounded-2xl border border-white/5 bg-zinc-900/50 p-6 shadow-2xl backdrop-blur-md relative min-h-[120px]">
+            @if (_isLoading)
+            {
+                <div class="absolute inset-0 flex items-center justify-center bg-zinc-950/40 backdrop-blur-xs rounded-2xl"><div class="h-5 w-5 animate-spin rounded-full border-b-2 border-cyan-400"></div></div>
+            }
+            <h6 class="text-sm font-medium text-zinc-400">Total Expenses</h6>
+            <div class="mt-4 text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-rose-400 to-fuchsia-500">
+                @_monthlyExpenses.ToString("C")
+            </div>
+        </div>
+
+        <!-- Safe to Spend (Dynamic Colors) -->
+        <div class="flex flex-col justify-between rounded-2xl border @(_safeToSpend >= 0 ? "border-cyan-500/30 bg-cyan-500/5" : "border-rose-500/30 bg-rose-500/5") p-6 shadow-2xl backdrop-blur-md relative min-h-[120px]">
+            <!-- Isolate the overflow-hidden to just the background glow -->
+            <div class="pointer-events-none absolute inset-0 overflow-hidden rounded-2xl">
                 <div class="absolute -right-4 -top-4 h-24 w-24 rounded-full @(_safeToSpend >= 0 ? "bg-cyan-500/10" : "bg-rose-500/10") blur-2xl"></div>
-                <div class="flex items-center justify-between relative z-10">
-                    <h6 class="text-sm font-medium @(_safeToSpend >= 0 ? "text-cyan-400" : "text-rose-400")">Safe to Spend</h6>
-                    <FinanceTracker.Shared.Components.InfoTooltip Text="Your total income minus everything you've already spent, minus your remaining expected fixed bills." />
+            </div>
+
+            @if (_isLoading)
+            {
+                <div class="absolute inset-0 z-20 flex items-center justify-center rounded-2xl bg-zinc-950/40 backdrop-blur-xs"><div class="h-5 w-5 animate-spin rounded-full border-b-2 border-cyan-400"></div></div>
+            }
+
+            <div class="relative z-10 flex items-center justify-between">
+                <h6 class="text-sm font-medium @(_safeToSpend >= 0 ? "text-cyan-400" : "text-rose-400")">Safe to Spend</h6>
+                <FinanceTracker.Shared.Components.InfoTooltip Text="Your total income minus everything you've already spent, minus your remaining expected fixed bills." />
+            </div>
+            <div class="relative z-10">
+                <div class="mt-4 text-3xl font-bold @(_safeToSpend >= 0 ? "text-white" : "text-rose-400")">
+                    @_safeToSpend.ToString("C")
                 </div>
-                <div class="relative z-10">
-                    <div class="mt-4 text-3xl font-bold @(_safeToSpend >= 0 ? "text-white" : "text-rose-400")">
-                        @_safeToSpend.ToString("C")
-                    </div>
-                    <p class="mt-1 text-xs @(_safeToSpend >= 0 ? "text-cyan-500/70" : "text-rose-500/70")">True leftover cash flow</p>
-                </div>
+                <p class="mt-1 text-xs @(_safeToSpend >= 0 ? "text-cyan-500/70" : "text-rose-500/70")">True leftover cash flow</p>
             </div>
         </div>
+    </div>
 
-        <!-- 3-Item Flex Carousel for Insights -->
-        @if (_insights.Any())
-        {
-            <div class="mb-8 rounded-2xl border border-white/5 bg-zinc-900/50 shadow-2xl backdrop-blur-md">
-                <div class="flex items-center justify-between border-b border-white/5 px-6 py-4">
-                    <h5 class="flex items-center text-lg font-bold text-white m-0">
-                        <i class="bi bi-lightbulb-fill text-yellow-400 mr-2.5"></i> Trend Insights
-                    </h5>
-
-                    <!-- Carousel Controls -->
-                    <div class="flex items-center gap-4">
-                        <button class="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white transition-colors" @onclick="PreviousInsight" aria-label="Previous Insight">
-                            <i class="bi bi-chevron-left"></i>
-                        </button>
-                        <span class="text-sm font-medium text-zinc-500">@(_currentInsightIndex + 1) of @_insights.Count</span>
-                        <button class="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white transition-colors" @onclick="NextInsight" aria-label="Next Insight">
-                            <i class="bi bi-chevron-right"></i>
-                        </button>
-                    </div>
-                </div>
-
-                <div class="p-6">
-                    <div @key="_currentInsightIndex" class="insight-slide flex flex-col md:flex-row gap-4 justify-center items-stretch w-full">
-                        @for (int i = 0; i < Math.Min(3, _insights.Count); i++)
-                        {
-                            var index = (_currentInsightIndex + i) % _insights.Count;
-                            var currentInsight = _insights[index];
-                            var targetUrl = currentInsight.Category == "Discretionary"
-                                ? $"/transactions?period={_selectedPeriod}&type=Expense&maxamount=20"
-                                : $"/transactions?period={_selectedPeriod}&category={Uri.EscapeDataString(currentInsight.Category)}";
-
-                            var isAlert = currentInsight.Severity == InsightSeverity.Alert;
-                            var cardClasses = isAlert
-                                ? "border-rose-500/20 bg-rose-500/5 hover:bg-rose-500/10"
-                                : "border-yellow-500/20 bg-yellow-500/5 hover:bg-yellow-500/10";
-                            var iconClasses = isAlert ? "text-rose-400" : "text-yellow-400";
-
-                            <div class="flex-1 w-full">
-                                <a href="@targetUrl" class="block h-full card-hover text-decoration-none">
-                                    <div class="flex h-full flex-col items-center justify-start rounded-xl border p-5 text-center transition-colors @cardClasses">
-                                        <div class="mb-3 flex items-center justify-center gap-2">
-                                            <i class="bi @currentInsight.Icon text-xl @iconClasses"></i>
-                                            <h5 class="text-sm font-bold text-white m-0">@currentInsight.Title</h5>
-                                        </div>
-                                        <p class="mb-4 text-sm text-zinc-400 leading-relaxed">@currentInsight.Message</p>
-
-                                        @if (currentInsight.PotentialSavings > 0)
-                                        {
-                                            <span class="mt-auto w-full rounded-lg border border-white/10 bg-zinc-950/50 py-2 text-xs font-semibold text-zinc-300 shadow-inner">
-                                                Potential recovery: <span class="@iconClasses">~@currentInsight.PotentialSavings.ToString("C")</span>
-                                            </span>
-                                        }
-                                    </div>
-                                </a>
-                            </div>
-                        }
-                    </div>
-                </div>
-            </div>
-        }
-
-        <!-- 6-Month Cash Flow Trend Chart -->
-        <div class="mb-8 rounded-2xl border border-white/5 bg-zinc-900/50 shadow-2xl backdrop-blur-md">
-            <div class="border-b border-white/5 px-6 py-4">
-                <h5 class="text-lg font-bold text-white m-0">6-Month Cash Flow Trend</h5>
-            </div>
-            <div class="p-6">
-                @if (!_cashFlowTrend.Any())
-                {
-                    <p class="text-center text-zinc-500 py-8">Not enough data to display trend.</p>
-                }
-                else
-                {
-                    <div class="flex items-end justify-around border-b border-zinc-800 pb-2 h-[220px]">
-                        @foreach (var month in _cashFlowTrend)
-                        {
-                            var incomeHeight = _maxCashFlowAmount > 0 ? (month.Income / _maxCashFlowAmount) * 100 : 0;
-                            var expenseHeight = _maxCashFlowAmount > 0 ? (month.Expense / _maxCashFlowAmount) * 100 : 0;
-
-                            <div class="flex flex-col items-center justify-end h-full w-[14%] shrink">
-                                <div class="flex w-full items-end justify-center gap-1.5 h-[180px]">
-                                    <!-- Income Bar -->
-                                    <div class="w-[40%] rounded-t bg-gradient-to-t from-emerald-600 to-emerald-400 chart-bar shadow-[0_0_15px_rgba(52,211,153,0.2)]"
-                                         style="height: @(incomeHeight.ToString("0.##"))%;"
-                                         title="Income: @month.Income.ToString("C")">
-                                    </div>
-                                    <!-- Expense Bar -->
-                                    <div class="w-[40%] rounded-t bg-gradient-to-t from-rose-600 to-rose-400 chart-bar shadow-[0_0_15px_rgba(251,113,133,0.2)]"
-                                         style="height: @(expenseHeight.ToString("0.##"))%;"
-                                         title="Expense: @month.Expense.ToString("C")">
-                                    </div>
-                                </div>
-                                <span class="mt-3 text-xs font-semibold text-zinc-500 uppercase tracking-wider">@month.MonthLabel</span>
-                            </div>
-                        }
-                    </div>
-
-                    <!-- Chart Legend -->
-                    <div class="mt-6 flex justify-center gap-8">
-                        <div class="flex items-center gap-2">
-                            <div class="h-3 w-3 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]"></div>
-                            <small class="font-semibold text-zinc-400">Income</small>
-                        </div>
-                        <div class="flex items-center gap-2">
-                            <div class="h-3 w-3 rounded-full bg-rose-400 shadow-[0_0_8px_rgba(251,113,133,0.5)]"></div>
-                            <small class="font-semibold text-zinc-400">Expense</small>
-                        </div>
-                    </div>
-                }
-            </div>
-        </div>
-
-        <!-- Weekly Snapshot & Achievements Row -->
-        <div class="mb-8 grid gap-4 lg:grid-cols-2">
-
-            <!-- Weekly Expenses -->
-            <div class="flex flex-col rounded-2xl border border-white/5 bg-zinc-900/50 shadow-2xl backdrop-blur-md">
-                <div class="border-b border-white/5 px-6 py-4">
-                    <h5 class="text-lg font-bold text-white m-0">Weekly Spend Pacing</h5>
-                </div>
-                <div class="flex-1 p-2">
-                    <div class="flex flex-col">
-                        @foreach (var week in _weeklySpends.OrderBy(w => w.Key))
-                        {
-                            <a href="/transactions?period=@_selectedPeriod&week=@week.Key&type=Expense"
-                               class="group flex items-center justify-between rounded-xl px-4 py-3 text-decoration-none transition-colors hover:bg-white/5">
-                                <span class="font-medium text-zinc-300 group-hover:text-cyan-400 transition-colors">
-                                    Week @week.Key
-                                    <small class="ml-2 text-zinc-600">(Days @((week.Key - 1) * 7 + 1)-@(Math.Min(week.Key * 7, DateTime.DaysInMonth(int.Parse(_selectedPeriod.Split('-')[0]), int.Parse(_selectedPeriod.Split('-')[1])))))</small>
-                                </span>
-                                <span class="rounded-full bg-zinc-800 px-3 py-1 text-xs font-semibold text-zinc-300 border border-white/5">
-                                    @week.Value.ToString("C")
-                                </span>
-                            </a>
-                        }
-                    </div>
-                </div>
-            </div>
-
-            <!-- Gamification Badges -->
-            <div class="flex flex-col rounded-2xl border border-white/5 bg-zinc-900/50 shadow-2xl backdrop-blur-md">
-                <div class="border-b border-white/5 px-6 py-4">
-                    <h5 class="text-lg font-bold text-white m-0">Monthly Achievements</h5>
-                </div>
-                <div class="flex-1 p-6 flex flex-wrap content-start gap-3">
-                    @if (!_earnedBadges.Any())
-                    {
-                        <p class="w-full text-center text-sm text-zinc-500 mt-4">Analyzing spending patterns to award badges...</p>
-                    }
-                    else
-                    {
-                        @foreach (var badge in _earnedBadges)
-                        {
-                            <div class="flex min-w-[160px] flex-1 items-center gap-3 rounded-xl border p-3 @badge.CssClass">
-                                <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-zinc-950/30 backdrop-blur-sm">
-                                    <i class="bi @badge.Icon text-xl"></i>
-                                </div>
-                                <div class="flex flex-col">
-                                    <span class="text-sm font-bold tracking-wide text-white">@badge.Title</span>
-                                    <span class="text-xs opacity-80">@badge.Description</span>
-                                </div>
-                            </div>
-                        }
-                    }
-                </div>
-            </div>
-        </div>
-
-        <!-- Paced Budget Progress -->
+    <!-- 3-Item Flex Carousel for Insights -->
+    @if (_insights.Any())
+    {
         <div class="mb-8 rounded-2xl border border-white/5 bg-zinc-900/50 shadow-2xl backdrop-blur-md">
             <div class="flex items-center justify-between border-b border-white/5 px-6 py-4">
-                <h5 class="text-lg font-bold text-white m-0">Budget Pacing</h5>
-                <span class="rounded bg-white/10 px-2.5 py-1 text-xs font-semibold text-zinc-400 border border-white/5">Target Pace: @(_targetPacePercentage.ToString("P0"))</span>
+                <h5 class="flex items-center text-lg font-bold text-white m-0">
+                    <i class="bi bi-lightbulb-fill text-yellow-400 mr-2.5"></i> Trend Insights
+                </h5>
+
+                <!-- Carousel Controls -->
+                <div class="flex items-center gap-4">
+                    <button class="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white transition-colors" @onclick="PreviousInsight" aria-label="Previous Insight">
+                        <i class="bi bi-chevron-left"></i>
+                    </button>
+                    <span class="text-sm font-medium text-zinc-500">@(_currentInsightIndex + 1) of @_insights.Count</span>
+                    <button class="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white transition-colors" @onclick="NextInsight" aria-label="Next Insight">
+                        <i class="bi bi-chevron-right"></i>
+                    </button>
+                </div>
             </div>
+
             <div class="p-6">
-                @if (!_budgetTrackers.Any())
-                {
-                    <p class="text-center text-zinc-500 py-4 m-0">No budgets configured for this month.</p>
-                }
-                else
-                {
-                    <div class="grid gap-6 md:grid-cols-2">
-                        @foreach (var budget in _budgetTrackers)
-                        {
-                            <a href="/transactions?period=@_selectedPeriod&category=@Uri.EscapeDataString(budget.Category)" class="group block text-decoration-none rounded-xl p-4 transition-colors hover:bg-white/5">
-                                <div class="mb-2 flex items-end justify-between">
-                                    <strong class="text-zinc-200 group-hover:text-cyan-400 transition-colors">@budget.Category</strong>
-                                    <span class="text-sm">
-                                        <span class="font-bold text-white">@budget.Spent.ToString("C")</span>
-                                        <span class="text-zinc-500"> / @budget.Limit.ToString("C")</span>
-                                    </span>
-                                </div>
+                <div @key="_currentInsightIndex" class="insight-slide flex flex-col md:flex-row gap-4 justify-center items-stretch w-full">
+                    @for (int i = 0; i < Math.Min(3, _insights.Count); i++)
+                    {
+                        var index = (_currentInsightIndex + i) % _insights.Count;
+                        var currentInsight = _insights[index];
+                        var targetUrl = currentInsight.Category == "Discretionary"
+                            ? $"/transactions?period={_selectedPeriod}&type=Expense&maxamount=20"
+                            : $"/transactions?period={_selectedPeriod}&category={Uri.EscapeDataString(currentInsight.Category)}";
 
-                                <!-- FinTech Progress Bar -->
-                                <div class="h-3 w-full overflow-hidden rounded-full bg-zinc-950 shadow-inner">
-                                    <div class="h-full rounded-full transition-all duration-500 @budget.StatusColor relative"
-                                         style="width: @(Math.Min(budget.SpentPercentage * 100, 100).ToString("0.##"))%;">
-                                        <div class="absolute inset-0 bg-white/20"></div>
+                        var isAlert = currentInsight.Severity == InsightSeverity.Alert;
+                        var cardClasses = isAlert
+                            ? "border-rose-500/20 bg-rose-500/5 hover:bg-rose-500/10"
+                            : "border-yellow-500/20 bg-yellow-500/5 hover:bg-yellow-500/10";
+                        var iconClasses = isAlert ? "text-rose-400" : "text-yellow-400";
+
+                        <div class="flex-1 w-full">
+                            <a href="@targetUrl" class="block h-full card-hover text-decoration-none">
+                                <div class="flex h-full flex-col items-center justify-start rounded-xl border p-5 text-center transition-colors @cardClasses">
+                                    <div class="mb-3 flex items-center justify-center gap-2">
+                                        <i class="bi @currentInsight.Icon text-xl @iconClasses"></i>
+                                        <h5 class="text-sm font-bold text-white m-0">@currentInsight.Title</h5>
                                     </div>
-                                </div>
-                                <div class="mt-1 flex justify-end">
-                                    <span class="text-[10px] font-bold tracking-wider text-zinc-500">
-                                        @(Math.Round(budget.SpentPercentage * 100))% SPENT
-                                    </span>
-                                </div>
-                            </a>
-                        }
-                    </div>
-                }
-            </div>
-        </div>
+                                    <p class="mb-4 text-sm text-zinc-400 leading-relaxed">@currentInsight.Message</p>
 
-        <!-- Expense Breakdown List -->
-        <div class="rounded-2xl border border-white/5 bg-zinc-900/50 shadow-2xl backdrop-blur-md">
-            <div class="border-b border-white/5 px-6 py-4">
-                <h5 class="text-lg font-bold text-white m-0">Expense Breakdown</h5>
-            </div>
-            <div class="p-2">
-                @if (!_categoryExpenses.Any())
-                {
-                    <p class="text-center text-zinc-500 py-6 m-0">No expenses recorded for this period.</p>
-                }
-                else
-                {
-                    <div class="flex flex-col">
-                        @foreach (var category in _categoryExpenses)
-                        {
-                            <a href="/transactions?period=@_selectedPeriod&category=@Uri.EscapeDataString(category.Key)"
-                               class="group flex items-center justify-between rounded-xl px-4 py-3 text-decoration-none transition-colors hover:bg-white/5">
-                                <span class="font-medium text-zinc-300 group-hover:text-cyan-400 transition-colors">@category.Key</span>
-                                <span class="rounded-full bg-zinc-800 px-3 py-1 text-xs font-bold tracking-wide text-zinc-300 border border-white/5 shadow-inner">
-                                    @category.Value.ToString("C")
-                                </span>
+                                    @if (currentInsight.PotentialSavings > 0)
+                                    {
+                                        <span class="mt-auto w-full rounded-lg border border-white/10 bg-zinc-950/50 py-2 text-xs font-semibold text-zinc-300 shadow-inner">
+                                            Potential recovery: <span class="@iconClasses">~@currentInsight.PotentialSavings.ToString("C")</span>
+                                        </span>
+                                    }
+                                </div>
                             </a>
-                        }
-                    </div>
-                }
+                        </div>
+                    }
+                </div>
             </div>
         </div>
     }
+
+    <!-- 6-Month Cash Flow Trend Chart -->
+    <div class="mb-8 rounded-2xl border border-white/5 bg-zinc-900/50 shadow-2xl backdrop-blur-md">
+        <div class="border-b border-white/5 px-6 py-4">
+            <h5 class="text-lg font-bold text-white m-0">6-Month Cash Flow Trend</h5>
+        </div>
+        <div class="p-6">
+            @if (!_cashFlowTrend.Any())
+            {
+                <p class="text-center text-zinc-500 py-8">Not enough data to display trend.</p>
+            }
+            else
+            {
+                <div class="flex items-end justify-around border-b border-zinc-800 pb-2 h-[220px]">
+                    @foreach (var month in _cashFlowTrend)
+                    {
+                        var incomeHeight = _maxCashFlowAmount > 0 ? (month.Income / _maxCashFlowAmount) * 100 : 0;
+                        var expenseHeight = _maxCashFlowAmount > 0 ? (month.Expense / _maxCashFlowAmount) * 100 : 0;
+
+                        <div class="flex flex-col items-center justify-end h-full w-[14%] shrink">
+                            <div class="flex w-full items-end justify-center gap-1.5 h-[180px]">
+                                <!-- Income Bar -->
+                                <div class="w-[40%] rounded-t bg-gradient-to-t from-emerald-600 to-emerald-400 chart-bar shadow-[0_0_15px_rgba(52,211,153,0.2)]"
+                                     style="height: @(incomeHeight.ToString("0.##"))%;"
+                                     title="Income: @month.Income.ToString("C")">
+                                </div>
+                                <!-- Expense Bar -->
+                                <div class="w-[40%] rounded-t bg-gradient-to-t from-rose-600 to-rose-400 chart-bar shadow-[0_0_15px_rgba(251,113,133,0.2)]"
+                                     style="height: @(expenseHeight.ToString("0.##"))%;"
+                                     title="Expense: @month.Expense.ToString("C")">
+                                </div>
+                            </div>
+                            <span class="mt-3 text-xs font-semibold text-zinc-500 uppercase tracking-wider">@month.MonthLabel</span>
+                        </div>
+                    }
+                </div>
+
+                <!-- Chart Legend -->
+                <div class="mt-6 flex justify-center gap-8">
+                    <div class="flex items-center gap-2">
+                        <div class="h-3 w-3 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]"></div>
+                        <small class="font-semibold text-zinc-400">Income</small>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <div class="h-3 w-3 rounded-full bg-rose-400 shadow-[0_0_8px_rgba(251,113,133,0.5)]"></div>
+                        <small class="font-semibold text-zinc-400">Expense</small>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+
+    <!-- Weekly Snapshot & Achievements Row -->
+    <div class="mb-8 grid gap-4 lg:grid-cols-2">
+
+        <!-- Weekly Expenses -->
+        <div class="flex flex-col rounded-2xl border border-white/5 bg-zinc-900/50 shadow-2xl backdrop-blur-md">
+            <div class="border-b border-white/5 px-6 py-4">
+                <h5 class="text-lg font-bold text-white m-0">Weekly Spend Pacing</h5>
+            </div>
+            <div class="flex-1 p-2">
+                <div class="flex flex-col">
+                    @foreach (var week in _weeklySpends.OrderBy(w => w.Key))
+                    {
+                        <a href="/transactions?period=@_selectedPeriod&week=@week.Key&type=Expense"
+                           class="group flex items-center justify-between rounded-xl px-4 py-3 text-decoration-none transition-colors hover:bg-white/5">
+                            <span class="font-medium text-zinc-300 group-hover:text-cyan-400 transition-colors">
+                                Week @week.Key
+                                <small class="ml-2 text-zinc-600">(Days @((week.Key - 1) * 7 + 1)-@(Math.Min(week.Key * 7, DateTime.DaysInMonth(int.Parse(_selectedPeriod.Split('-')[0]), int.Parse(_selectedPeriod.Split('-')[1])))))</small>
+                            </span>
+                            <span class="rounded-full bg-zinc-800 px-3 py-1 text-xs font-semibold text-zinc-300 border border-white/5">
+                                @week.Value.ToString("C")
+                            </span>
+                        </a>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <!-- Gamification Badges -->
+        <div class="flex flex-col rounded-2xl border border-white/5 bg-zinc-900/50 shadow-2xl backdrop-blur-md">
+            <div class="border-b border-white/5 px-6 py-4">
+                <h5 class="text-lg font-bold text-white m-0">Monthly Achievements</h5>
+            </div>
+            <div class="flex-1 p-6 flex flex-wrap content-start gap-3">
+                @if (!_earnedBadges.Any())
+                {
+                    <p class="w-full text-center text-sm text-zinc-500 mt-4">Analyzing spending patterns to award badges...</p>
+                }
+                else
+                {
+                    @foreach (var badge in _earnedBadges)
+                    {
+                        <div class="flex min-w-[160px] flex-1 items-center gap-3 rounded-xl border p-3 @badge.CssClass">
+                            <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-zinc-950/30 backdrop-blur-sm">
+                                <i class="bi @badge.Icon text-xl"></i>
+                            </div>
+                            <div class="flex flex-col">
+                                <span class="text-sm font-bold tracking-wide text-white">@badge.Title</span>
+                                <span class="text-xs opacity-80">@badge.Description</span>
+                            </div>
+                        </div>
+                    }
+                }
+            </div>
+        </div>
+    </div>
+
+    <!-- Paced Budget Progress -->
+    <div class="mb-8 rounded-2xl border border-white/5 bg-zinc-900/50 shadow-2xl backdrop-blur-md">
+        <div class="flex items-center justify-between border-b border-white/5 px-6 py-4">
+            <h5 class="text-lg font-bold text-white m-0">Budget Pacing</h5>
+            <span class="rounded bg-white/10 px-2.5 py-1 text-xs font-semibold text-zinc-400 border border-white/5">Target Pace: @(_targetPacePercentage.ToString("P0"))</span>
+        </div>
+        <div class="p-6">
+            @if (!_budgetTrackers.Any())
+            {
+                <p class="text-center text-zinc-500 py-4 m-0">No budgets configured for this month.</p>
+            }
+            else
+            {
+                <div class="grid gap-6 md:grid-cols-2">
+                    @foreach (var budget in _budgetTrackers)
+                    {
+                        <a href="/transactions?period=@_selectedPeriod&category=@Uri.EscapeDataString(budget.Category)" class="group block text-decoration-none rounded-xl p-4 transition-colors hover:bg-white/5">
+                            <div class="mb-2 flex items-end justify-between">
+                                <strong class="text-zinc-200 group-hover:text-cyan-400 transition-colors">@budget.Category</strong>
+                                <span class="text-sm">
+                                    <span class="font-bold text-white">@budget.Spent.ToString("C")</span>
+                                    <span class="text-zinc-500"> / @budget.Limit.ToString("C")</span>
+                                </span>
+                            </div>
+
+                            <!-- FinTech Progress Bar -->
+                            <div class="h-3 w-full overflow-hidden rounded-full bg-zinc-950 shadow-inner">
+                                <div class="h-full rounded-full transition-all duration-500 @budget.StatusColor relative"
+                                     style="width: @(Math.Min(budget.SpentPercentage * 100, 100).ToString("0.##"))%;">
+                                    <div class="absolute inset-0 bg-white/20"></div>
+                                </div>
+                            </div>
+                            <div class="mt-1 flex justify-end">
+                                <span class="text-[10px] font-bold tracking-wider text-zinc-500">
+                                    @(Math.Round(budget.SpentPercentage * 100))% SPENT
+                                </span>
+                            </div>
+                        </a>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+
+    <!-- Expense Breakdown List -->
+    <div class="rounded-2xl border border-white/5 bg-zinc-900/50 shadow-2xl backdrop-blur-md">
+        <div class="border-b border-white/5 px-6 py-4">
+            <h5 class="text-lg font-bold text-white m-0">Expense Breakdown</h5>
+        </div>
+        <div class="p-2">
+            @if (!_categoryExpenses.Any())
+            {
+                <p class="text-center text-zinc-500 py-6 m-0">No expenses recorded for this period.</p>
+            }
+            else
+            {
+                <div class="flex flex-col">
+                    @foreach (var category in _categoryExpenses)
+                    {
+                        <a href="/transactions?period=@_selectedPeriod&category=@Uri.EscapeDataString(category.Key)"
+                           class="group flex items-center justify-between rounded-xl px-4 py-3 text-decoration-none transition-colors hover:bg-white/5">
+                            <span class="font-medium text-zinc-300 group-hover:text-cyan-400 transition-colors">@category.Key</span>
+                            <span class="rounded-full bg-zinc-800 px-3 py-1 text-xs font-bold tracking-wide text-zinc-300 border border-white/5 shadow-inner">
+                                @category.Value.ToString("C")
+                            </span>
+                        </a>
+                    }
+                </div>
+            }
+        </div>
+    </div>
 </div>
 
 <style>
@@ -421,23 +440,46 @@
         public decimal Limit { get; set; }
         public decimal Spent { get; set; }
         public decimal SpentPercentage => Limit > 0 ? Spent / Limit : 0;
-        public string StatusColor { get; set; } = "bg-emerald-400"; // Changed default to Tailwind
+        public string StatusColor { get; set; } = "bg-emerald-400";
     }
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadAvailablePeriodsAsync();
-        await LoadDashboardDataAsync();
+        // 1. Subscribe to cross-page state changes
+        TxStateService.OnStateChanged += HandleStateChanged;
+
+        // 2. Zero-millisecond load check
+        if (TxStateService.IsLoaded)
+        {
+            await LoadAvailablePeriodsAsync();
+            await LoadDashboardDataAsync();
+            _isLoading = false;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && _isLoading)
+        {
+            // If cache was empty, load data in the background
+            await LoadAvailablePeriodsAsync();
+            await LoadDashboardDataAsync();
+            _isLoading = false;
+            StateHasChanged();
+        }
     }
 
     private async Task LoadAvailablePeriodsAsync()
     {
-        var dates = await DbContext.Transactions
-            .Select(t => new { t.Date.Year, t.Date.Month })
-            .Distinct()
-            .OrderByDescending(x => x.Year)
-            .ThenByDescending(x => x.Month)
-            .ToListAsync();
+        // Pull instantly from State Service instead of DB
+        var transactions = await TxStateService.GetTransactionsAsync();
+
+        var dates = transactions
+                    .Select(t => new { t.Date.Year, t.Date.Month })
+                    .Distinct()
+                    .OrderByDescending(x => x.Year)
+                    .ThenByDescending(x => x.Month)
+                    .ToList();
 
         _availablePeriods = dates.Select(d => new PeriodOption
         {
@@ -472,13 +514,7 @@
 
     private async Task LoadDashboardDataAsync()
     {
-        _isLoading = true;
-
-        if (string.IsNullOrEmpty(_selectedPeriod))
-        {
-            _isLoading = false;
-            return;
-        }
+        if (string.IsNullOrEmpty(_selectedPeriod)) return;
 
         var profile = await DbContext.GamificationProfiles.FirstOrDefaultAsync();
         if (profile != null)
@@ -493,9 +529,12 @@
         var startOfMonth = new DateTime(year, month, 1);
         var endOfMonth = startOfMonth.AddMonths(1).AddDays(-1);
 
-        var periodTransactions = await DbContext.Transactions
+        // Instantly pull all transactions from memory
+        var allTransactions = await TxStateService.GetTransactionsAsync();
+
+        var periodTransactions = allTransactions
                     .Where(t => t.Date >= startOfMonth && t.Date <= endOfMonth && !t.IsSplit)
-                    .ToListAsync();
+                    .ToList();
 
         _monthlyIncome = periodTransactions
             .Where(t => t.Type == "Income")
@@ -511,11 +550,12 @@
             .ToListAsync();
 
         var twoMonthsAgo = startOfMonth.AddMonths(-2);
-        var historicalFixedTxns = await DbContext.Transactions
-            .Where(t => t.Date >= twoMonthsAgo && t.Date < startOfMonth && t.Type == "Expense" && fixedCategories.Contains(t.Category ?? ""))
-            .GroupBy(t => new { t.Date.Year, t.Date.Month })
-            .Select(g => g.Sum(t => t.Amount))
-            .ToListAsync();
+
+        var historicalFixedTxns = allTransactions
+                    .Where(t => t.Date >= twoMonthsAgo && t.Date < startOfMonth && t.Type == "Expense" && fixedCategories.Contains(t.Category ?? ""))
+                    .GroupBy(t => new { t.Date.Year, t.Date.Month })
+                    .Select(g => g.Sum(t => t.Amount))
+                    .ToList();
 
         decimal expectedFixedTotal = historicalFixedTxns.Any() ? historicalFixedTxns.Average() : 0;
 
@@ -532,9 +572,9 @@
 
         var sixMonthsAgo = startOfMonth.AddMonths(-5);
 
-        var trendTransactions = await DbContext.Transactions
+        var trendTransactions = allTransactions
                     .Where(t => t.Date >= sixMonthsAgo && t.Date <= endOfMonth && !t.IsSplit)
-                    .ToListAsync();
+                    .ToList();
 
         _cashFlowTrend.Clear();
 
@@ -594,7 +634,7 @@
                 : 0m;
 
             decimal percentSpent = budget.MonthlyLimit > 0 ? spent / budget.MonthlyLimit : 0;
-            string color = "bg-emerald-400"; // Tailwind translation
+            string color = "bg-emerald-400";
 
             if (percentSpent > 1.0m)
             {
@@ -616,11 +656,7 @@
 
         _budgetTrackers = _budgetTrackers.OrderByDescending(b => b.SpentPercentage).ToList();
 
-        var categoryConfigs = await DbContext.CategoryConfigs.ToListAsync();
-        var fixedBillCategories = categoryConfigs
-            .Where(c => c.IsFixedBill)
-            .Select(c => c.Name)
-            .ToHashSet();
+        var fixedBillCategories = fixedCategories.ToHashSet();
 
         var discretionaryExpenses = periodTransactions
             .Where(t => t.Type == "Expense"
@@ -686,7 +722,21 @@
         _currentInsightIndex = 0;
 
         await GamificationEngine.EvaluateAchievementsAsync();
-        _isLoading = false;
+    }
+
+    private void HandleStateChanged()
+    {
+        InvokeAsync(async () =>
+        {
+            await LoadAvailablePeriodsAsync();
+            await LoadDashboardDataAsync();
+            StateHasChanged();
+        });
+    }
+
+    public void Dispose()
+    {
+        TxStateService.OnStateChanged -= HandleStateChanged;
     }
 
     private void NextInsight()

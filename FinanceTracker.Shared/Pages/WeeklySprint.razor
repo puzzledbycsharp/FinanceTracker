@@ -58,23 +58,25 @@
             }
 
             <!-- Hero Discretionary Spend Card -->
-            <div class="relative flex flex-col items-center justify-center overflow-hidden rounded-2xl border @cardBorder @cardBg p-8 shadow-2xl backdrop-blur-md transition-colors duration-500">
-                <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div class="relative flex flex-col items-center justify-center rounded-2xl border @cardBorder @cardBg p-8 shadow-2xl backdrop-blur-md transition-colors duration-500">
+
+                <!-- Isolate the overflow-hidden to just the background glow -->
+                <div class="pointer-events-none absolute inset-0 flex items-center justify-center overflow-hidden rounded-2xl">
                     <div class="h-48 w-48 rounded-full @glowColor blur-3xl"></div>
                 </div>
 
                 <div class="relative z-10 flex flex-col items-center text-center">
                     <div class="mb-3 flex items-center justify-center gap-2">
-                        <h6 class="text-xs font-bold uppercase tracking-widest text-zinc-400 m-0">Discretionary Spend</h6>
+                        <h6 class="m-0 text-xs font-bold uppercase tracking-widest text-zinc-400">Discretionary Spend</h6>
                         <FinanceTracker.Shared.Components.InfoTooltip Text="Calculates total expenses for the 7-day window, strictly excluding any category marked as 'Is Fixed Bill'." />
                     </div>
 
-                    <h1 class="text-5xl lg:text-6xl font-black tracking-tight @textColor m-0 drop-shadow-md">
+                    <h1 class="m-0 text-5xl font-black tracking-tight drop-shadow-md lg:text-6xl @textColor">
                         @_weeklyTotal.ToString("C")
                     </h1>
 
                     <!-- Budget Pacing Tracker -->
-                    <div class="mt-6 flex items-center gap-3 rounded-full border border-white/10 bg-black/40 px-5 py-2 text-sm backdrop-blur-md shadow-inner">
+                    <div class="mt-6 flex items-center gap-3 rounded-full border border-white/10 bg-black/40 px-5 py-2 text-sm shadow-inner backdrop-blur-md">
                         <span class="font-semibold text-zinc-300">Budget: @_activeBudgetLimit.ToString("C")</span>
                         <span class="text-zinc-600">|</span>
                         <span class="font-bold @(isOverBudget ? "text-rose-400" : "text-cyan-400")">

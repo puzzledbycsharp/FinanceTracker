@@ -54,6 +54,7 @@ builder.Services.AddScoped<FinancialInsightService>();
 builder.Services.AddScoped<TransactionService>();
 builder.Services.AddScoped<ToastService>();
 builder.Services.AddScoped<GamificationEngineService>();
+builder.Services.AddScoped<TransactionStateService>();
 
 builder.Services.AddScoped(sp =>
 {
