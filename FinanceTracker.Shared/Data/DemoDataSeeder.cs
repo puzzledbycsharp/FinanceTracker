@@ -133,6 +133,82 @@ namespace FinanceTracker.Shared
             return transactions.OrderBy(t => t.Date).ToList();
         }
 
+        public static List<Budget> GenerateBudgets(int months = 6)
+        {
+            var budgets = new List<Budget>();
+            var endDate = DateTime.Now;
+            var startDate = endDate.AddMonths(-months);
+
+            // Core discretionary categories tailored to the Loudoun County household profile
+            var benchmarkLimits = new Dictionary<string, decimal>
+            {
+                { "Groceries", 1100.00m },
+                { "Dining & Coffee", 450.00m },
+                { "Fast Food", 200.00m },
+                { "Gas & Transit", 250.00m },
+                { "Shopping", 400.00m },
+                { "Health & Fitness", 200.00m }
+            };
+
+            for (var date = new DateTime(startDate.Year, startDate.Month, 1); date <= endDate; date = date.AddMonths(1))
+            {
+                string periodString = $"{date.Year}-{date.Month:D2}";
+
+                foreach (var benchmark in benchmarkLimits)
+                {
+                    budgets.Add(new Budget
+                    {
+                        Id = Guid.NewGuid(),
+                        Period = periodString,
+                        Category = benchmark.Key,
+                        MonthlyLimit = benchmark.Value
+                    });
+                }
+            }
+
+            return budgets;
+        }
+
+        public static List<EarnedAchievement> GenerateAchievements(int months = 6)
+        {
+            var achievements = new List<EarnedAchievement>();
+            var endDate = DateTime.Now;
+            var startDate = endDate.AddMonths(-months);
+            var random = new Random(42); // Fixed seed for consistent demo data
+
+            // Jump week by week to simulate weekly rewards
+            for (var date = startDate; date <= endDate; date = date.AddDays(7))
+            {
+                // Weekly Boss Badge
+                achievements.Add(new EarnedAchievement
+                {
+                    Id = Guid.NewGuid(),
+                    Title = "Weekly Budget Boss",
+                    Description = "Kept discretionary spending under $150.",
+                    PointsAwarded = 100,
+                    Icon = "bi-trophy",
+                    DateEarned = date
+                });
+
+                // Randomly sprinkle in 1 to 2 "No Spend Days" per week
+                int noSpendDays = random.Next(1, 3);
+                for (int i = 0; i < noSpendDays; i++)
+                {
+                    achievements.Add(new EarnedAchievement
+                    {
+                        Id = Guid.NewGuid(),
+                        Title = "No Spend Day!",
+                        Description = "Wallet stayed closed all day.",
+                        PointsAwarded = 15,
+                        Icon = "bi-wallet2",
+                        DateEarned = date.AddDays(random.Next(1, 6))
+                    });
+                }
+            }
+
+            return achievements;
+        }
+
         private static Transaction CreateTx(DateTime date, decimal amount, string type, string description, string category, string institution, string account, int? userProfileId)
         {
             return new Transaction

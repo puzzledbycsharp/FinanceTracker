@@ -1,0 +1,92 @@
+﻿@page "/achievements"
+@rendermode InteractiveServer
+@using FinanceTracker.Shared.Models
+@using FinanceTracker.Shared.Data
+@using Microsoft.EntityFrameworkCore
+@inject FinanceDbContext DbContext
+
+<div class="mx-auto max-w-3xl">
+    <div class="mb-8 flex items-center justify-between">
+        <h2 class="text-2xl font-bold tracking-tight text-white">Achievements</h2>
+        <div class="flex items-center gap-2 rounded-full border border-yellow-500/30 bg-yellow-500/10 px-4 py-2 font-bold text-yellow-400 backdrop-blur-md shadow-lg shadow-yellow-500/5">
+            <i class="bi bi-star-fill"></i> @_totalPoints Total Points
+        </div>
+    </div>
+
+    @if (_isLoading)
+    {
+        <div class="flex justify-center p-12"><div class="h-8 w-8 animate-spin rounded-full border-b-2 border-t-2 border-cyan-500"></div></div>
+    }
+    else if (!_groupedLedger.Any())
+    {
+        <div class="rounded-2xl border border-white/5 bg-zinc-900/50 p-12 text-center shadow-2xl backdrop-blur-md">
+            <i class="bi bi-trophy text-4xl text-zinc-600 mb-4 block"></i>
+            <p class="text-lg font-medium text-zinc-400 m-0">No achievements earned yet. Start managing your finances!</p>
+        </div>
+    }
+    else
+    {
+        <div class="flex flex-col gap-4">
+            @foreach (var monthGroup in _groupedLedger)
+            {
+                <!-- Blazor natively handles boolean attributes using the open="@(condition)" syntax -->
+                <details class="group rounded-2xl border border-white/5 bg-zinc-900/50 shadow-2xl backdrop-blur-md [&_summary::-webkit-details-marker]:hidden" open="@(monthGroup.Key == _groupedLedger.First().Key)">
+                    <summary class="flex cursor-pointer items-center justify-between px-6 py-4 outline-none transition-colors hover:bg-white/5">
+                        <div class="flex items-center gap-3">
+                            <i class="bi bi-chevron-right text-zinc-500 transition-transform duration-300 group-open:rotate-90"></i>
+                            <h5 class="m-0 text-lg font-bold text-white">@monthGroup.Key</h5>
+                        </div>
+                        <span class="rounded-lg bg-zinc-800 px-3 py-1 text-sm font-bold text-yellow-400 border border-white/10">
+                            +@monthGroup.Value.Sum(e => e.PointsAwarded) pts
+                        </span>
+                    </summary>
+
+                    <div class="border-t border-white/5 p-4">
+                        <div class="flex flex-col gap-2">
+                            @foreach (var entry in monthGroup.Value)
+                            {
+                                <div class="flex items-center justify-between rounded-xl border border-white/5 bg-zinc-950/40 p-4 transition-colors hover:bg-white/5">
+                                    <div class="flex items-center gap-4">
+                                        <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-zinc-800 border border-white/5 shadow-inner">
+                                            <i class="bi @entry.Icon text-zinc-400"></i>
+                                        </div>
+                                        <div class="flex flex-col">
+                                            <span class="font-bold text-white">@entry.Title</span>
+                                            <span class="text-xs text-zinc-500">@entry.DateEarned.ToString("MMM dd, yyyy - h:mm tt")</span>
+                                        </div>
+                                    </div>
+                                    <div class="text-sm font-black text-yellow-400">
+                                        +@entry.PointsAwarded
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </details>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private bool _isLoading = true;
+    private int _totalPoints = 0;
+    private Dictionary<string, List<EarnedAchievement>> _groupedLedger = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var profile = await DbContext.GamificationProfiles.FirstOrDefaultAsync();
+        _totalPoints = profile?.TotalPoints ?? 0;
+
+        var allEntries = await DbContext.EarnedAchievements
+            .OrderByDescending(e => e.DateEarned)
+            .ToListAsync();
+
+        // Group the entries by Month and Year
+        _groupedLedger = allEntries
+            .GroupBy(e => e.DateEarned.ToString("MMMM yyyy"))
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        _isLoading = false;
+    }
+}

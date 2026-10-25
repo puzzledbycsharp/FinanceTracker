@@ -1,7 +1,8 @@
-using FinanceTracker.Web.Components;
-using FinanceTracker.Shared.Services;
-using FinanceTracker.Web.Services;
 using FinanceTracker.Shared.Data;
+using FinanceTracker.Shared.Models;
+using FinanceTracker.Shared.Services;
+using FinanceTracker.Web.Components;
+using FinanceTracker.Web.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -95,7 +96,32 @@ if (isDemoMode)
         db.Transactions.AddRange(freshDemoData);
         db.SaveChanges();
 
+
         app.Logger.LogInformation($"Successfully seeded {freshDemoData.Count} demo transactions.");
+
+        // Seed 6 months of Budgets
+        var demoBudgets = FinanceTracker.Shared.DemoDataSeeder.GenerateBudgets(6);
+        db.Budgets.AddRange(demoBudgets);
+        db.SaveChanges();
+
+        // Seed 6 months of Achievements
+        var demoAchievements = FinanceTracker.Shared.DemoDataSeeder.GenerateAchievements(6);
+        db.EarnedAchievements.AddRange(demoAchievements);
+
+        // Ensure the profile's TotalPoints reflects the seeded demo achievements
+        var totalDemoPoints = demoAchievements.Sum(a => a.PointsAwarded);
+        var profile = db.GamificationProfiles.FirstOrDefault();
+        if (profile != null)
+        {
+            profile.TotalPoints += totalDemoPoints;
+        }
+        else
+        {
+            db.GamificationProfiles.Add(new GamificationProfile { Id = 1, TotalPoints = totalDemoPoints });
+        }
+
+        db.SaveChanges();
+
     }
     else
     {

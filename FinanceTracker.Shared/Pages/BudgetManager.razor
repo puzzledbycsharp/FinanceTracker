@@ -2,36 +2,50 @@
 @rendermode InteractiveServer
 @using FinanceTracker.Shared.Models
 @using FinanceTracker.Shared.Data
+@using FinanceTracker.Shared.Services
 @using Microsoft.EntityFrameworkCore
 @inject FinanceDbContext DbContext
+@inject ToastService ToastService
 
 <div class="mx-auto max-w-7xl">
     <!-- Header -->
     <div class="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h2 class="text-2xl font-bold tracking-tight text-white">Budget Manager</h2>
 
-        <div class="flex items-center gap-3">
-            <label class="text-sm font-medium text-zinc-400">Period:</label>
-            <select class="cursor-pointer rounded-lg border border-white/10 bg-zinc-900/80 px-4 py-2 text-sm text-white shadow-xl outline-none backdrop-blur-md focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500" @bind="_selectedPeriod" @bind:after="LoadBudgetsAsync">
-                @foreach (var p in _availablePeriods)
-                {
-                    <option value="@p.Value">@p.Label</option>
-                }
-            </select>
-        </div>
+        @if (_availablePeriods.Any())
+        {
+            <div class="flex items-center gap-3">
+                <label for="periodSelect" class="text-sm font-medium text-zinc-400">Period:</label>
+                <select id="periodSelect" class="cursor-pointer rounded-lg border border-white/10 bg-zinc-900/80 px-4 py-2 text-sm text-white shadow-xl outline-none backdrop-blur-md focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500" @onchange="OnPeriodChanged">
+                    @foreach (var period in _availablePeriods)
+                    {
+                        <option value="@period.Value" selected="@(period.Value == _selectedPeriod)">
+                            @period.Label
+                        </option>
+                    }
+                </select>
+            </div>
+        }
     </div>
 
-    <div class="grid gap-8 lg:grid-cols-12">
-        <!-- Add New Budget Form (Left Column) -->
-        <div class="lg:col-span-4">
-            <div class="rounded-2xl border border-white/5 bg-zinc-900/50 shadow-2xl backdrop-blur-md">
-                <div class="border-b border-white/5 px-6 py-4">
-                    <h5 class="m-0 text-lg font-bold text-white">Add / Update Budget</h5>
-                </div>
-                <div class="flex flex-col gap-5 p-6">
-                    <div>
-                        <label class="mb-2 block text-sm font-medium text-zinc-400">Category</label>
-                        <select class="w-full cursor-pointer rounded-lg border border-white/10 bg-zinc-950 px-4 py-2.5 text-sm text-white outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500" @bind="_newCategory">
+    @if (_isLoading)
+    {
+        <div class="flex items-center justify-center p-12">
+            <div class="h-8 w-8 animate-spin rounded-full border-b-2 border-t-2 border-cyan-500"></div>
+        </div>
+    }
+    else
+    {
+        <div class="grid gap-8 lg:grid-cols-12">
+
+            <!-- Left Panel: Add/Update Form -->
+            <div class="lg:col-span-4">
+                <div class="rounded-2xl border border-white/5 bg-zinc-900/50 shadow-2xl backdrop-blur-md p-6 sticky top-24">
+                    <h5 class="mb-6 text-lg font-bold text-white">Add / Update Budget</h5>
+
+                    <div class="mb-5">
+                        <label class="mb-2 block text-xs font-bold uppercase tracking-wider text-zinc-500">Category</label>
+                        <select class="w-full cursor-pointer rounded-lg border border-white/10 bg-zinc-950 px-4 py-2.5 text-sm text-white outline-none transition-colors focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500" @bind="_editBudget.Category">
                             <option value="">-- Select Category --</option>
                             @foreach (var cat in _availableCategories)
                             {
@@ -39,178 +53,345 @@
                             }
                         </select>
                     </div>
-                    <div>
-                        <label class="mb-2 block text-sm font-medium text-zinc-400">Monthly Limit ($)</label>
-                        <input type="number" class="w-full rounded-lg border border-white/10 bg-zinc-950 px-4 py-2.5 text-sm text-white outline-none placeholder-zinc-600 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500" @bind="_newLimit" />
+
+                    <div class="mb-6">
+                        <label class="mb-2 block text-xs font-bold uppercase tracking-wider text-zinc-500">Monthly Limit</label>
+                        <div class="flex items-center overflow-hidden rounded-lg border border-white/10 bg-zinc-950 transition-colors focus-within:border-cyan-500 focus-within:ring-1 focus-within:ring-cyan-500">
+                            <span class="pl-4 pr-1 font-medium text-zinc-500">$</span>
+                            <input type="number" step="10" min="0" class="w-full bg-transparent py-2.5 pr-4 text-sm font-bold text-white outline-none placeholder-zinc-600" @bind="_editBudget.MonthlyLimit" />
+                        </div>
                     </div>
 
-                    <button class="mt-2 w-full rounded-lg bg-gradient-to-r from-cyan-500 to-blue-600 px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-cyan-500/25 transition-all hover:scale-[1.02] disabled:scale-100 disabled:opacity-50 disabled:grayscale"
-                            @onclick="SaveBudgetAsync"
-                            disabled="@(string.IsNullOrEmpty(_newCategory) || _newLimit <= 0)">
-                        Save Budget for @_selectedPeriodLabel
+                    <button type="button" class="w-full rounded-lg bg-gradient-to-r from-cyan-500 to-blue-600 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-cyan-500/25 transition-all hover:scale-[1.02] disabled:scale-100 disabled:opacity-50 disabled:grayscale" @onclick="SaveBudgetAsync" disabled="@IsSaveDisabled">
+                        Save Budget
                     </button>
                 </div>
             </div>
-        </div>
 
-        <!-- Current Budgets List (Right Column) -->
-        <div class="lg:col-span-8">
-            <div class="overflow-hidden rounded-2xl border border-white/5 bg-zinc-900/50 shadow-2xl backdrop-blur-md">
-                <div class="flex items-center justify-between border-b border-white/5 px-6 py-4">
-                    <h5 class="m-0 text-lg font-bold text-white">Active Budgets (@_selectedPeriodLabel)</h5>
-                    <span class="rounded border border-white/5 bg-white/10 px-2.5 py-1 text-xs font-semibold text-zinc-400">@_budgets.Count Total</span>
-                </div>
+            <!-- Right Panel: Active Budgets List -->
+            <div class="lg:col-span-8">
+                <div class="rounded-2xl border border-white/5 bg-zinc-900/50 shadow-2xl backdrop-blur-md overflow-hidden">
+                    <div class="flex items-center justify-between border-b border-white/5 px-6 py-4">
+                        <h5 class="m-0 text-lg font-bold text-white">Active Budgets (@_selectedPeriodLabel)</h5>
+                        <span class="rounded-lg bg-zinc-800 px-3 py-1 text-xs font-semibold text-zinc-400 border border-white/10">@_budgets.Count Total</span>
+                    </div>
 
-                <div class="p-0">
                     @if (!_budgets.Any())
                     {
-                        <!-- Elegant Empty State -->
                         <div class="flex flex-col items-center justify-center p-12 text-center">
-                            <div class="mb-4 flex h-16 w-16 items-center justify-center rounded-full border border-white/5 bg-zinc-800/50">
+                            <div class="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-zinc-800 border border-white/5 shadow-inner">
                                 <i class="bi bi-wallet2 text-2xl text-zinc-500"></i>
                             </div>
-                            <p class="mb-2 text-base font-medium text-zinc-300 m-0">No budgets set for this month.</p>
-                            <p class="mb-6 text-sm text-zinc-500 m-0">Copy your limits from the previous month to get started quickly.</p>
+                            <h6 class="text-lg font-bold text-white">No budgets set for this month.</h6>
+                            <p class="mb-8 text-sm text-zinc-400">Let AI calculate your baseline, or pull from last month.</p>
 
-                            <button class="flex items-center gap-2 rounded-lg border border-white/10 bg-zinc-800 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:border-zinc-600 hover:bg-zinc-700" @onclick="CopyPreviousMonthBudgetsAsync">
-                                <i class="bi bi-files"></i> Copy from Previous Month
-                            </button>
+                            <div class="flex flex-col sm:flex-row gap-4">
+                                <button class="flex items-center gap-2 rounded-lg border border-white/10 bg-zinc-800 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-zinc-700 hover:text-cyan-400" @onclick="CopyFromPreviousMonthAsync">
+                                    <i class="bi bi-copy"></i> Copy Previous Month
+                                </button>
+                                <button class="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-6 py-2.5 text-sm font-semibold text-emerald-400 transition-colors hover:bg-emerald-500/20" @onclick="AutoGenerateFromAveragesAsync">
+                                    <i class="bi bi-magic"></i> Auto-Generate from 90-Day Avg
+                                </button>
+                            </div>
                         </div>
                     }
                     else
                     {
-                        <div class="flex flex-col divide-y divide-white/5">
-                            @foreach (var budget in _budgets)
+                        <div class="p-4 grid gap-3">
+                            @foreach (var budget in _budgets.OrderByDescending(b => b.MonthlyLimit))
                             {
-                                <div class="group flex items-center justify-between px-6 py-4 transition-colors hover:bg-white/5">
+                                <div class="group flex items-center justify-between rounded-xl border border-white/5 bg-zinc-950/40 p-4 transition-colors hover:bg-white/5">
                                     <div class="flex items-center gap-4">
-                                        <div class="flex h-10 w-10 items-center justify-center rounded-lg border border-white/5 bg-zinc-950/50 shadow-inner">
-                                            <i class="bi bi-tag text-cyan-500/70"></i>
+                                        <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-zinc-800 border border-white/5 shadow-inner group-hover:bg-cyan-500/10 group-hover:border-cyan-500/30 transition-colors">
+                                            <i class="bi bi-pie-chart-fill text-zinc-500 group-hover:text-cyan-400 transition-colors"></i>
                                         </div>
-                                        <strong class="text-base font-medium text-zinc-200 transition-colors group-hover:text-cyan-400">@budget.Category</strong>
+                                        <div>
+                                            <div class="font-bold text-white">@budget.Category</div>
+                                            <div class="text-xs text-zinc-500">@budget.MonthlyLimit.ToString("C") Limit</div>
+                                        </div>
                                     </div>
-                                    <div class="flex items-center gap-4">
-                                        <span class="rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-3 py-1.5 text-sm font-bold tracking-wide text-cyan-400 shadow-inner">
-                                            @budget.MonthlyLimit.ToString("C")
-                                        </span>
-                                        <button class="flex h-8 w-8 items-center justify-center rounded-lg border border-transparent text-zinc-500 transition-colors hover:border-rose-500/30 hover:bg-rose-500/10 hover:text-rose-400" @onclick="() => DeleteBudgetAsync(budget)" title="Delete Budget">
-                                            <i class="bi bi-trash"></i>
+                                    <div class="flex items-center gap-2">
+                                        <button class="flex h-8 w-8 items-center justify-center rounded-lg text-zinc-500 hover:bg-zinc-800 hover:text-white transition-colors" @onclick="() => EditBudget(budget)">
+                                            <i class="bi bi-pencil-square text-sm"></i>
+                                        </button>
+                                        <button class="flex h-8 w-8 items-center justify-center rounded-lg text-zinc-500 hover:bg-rose-500/10 hover:text-rose-400 transition-colors" @onclick="() => DeleteBudgetAsync(budget)">
+                                            <i class="bi bi-trash text-sm"></i>
                                         </button>
                                     </div>
                                 </div>
                             }
                         </div>
+
+                        <!-- Utility Actions when budgets exist -->
+                        @if (_hasSuggestionsAvailable)
+                        {
+                            <div class="border-t border-white/5 bg-zinc-950/30 px-6 py-4 flex justify-end">
+                                <button class="text-xs font-semibold text-emerald-500 hover:text-emerald-400 transition-colors flex items-center gap-1.5" @onclick="AutoGenerateFromAveragesAsync">
+                                    <i class="bi bi-clock-history"></i> Suggest missing categories from history
+                                </button>
+                            </div>
+                        }
                     }
                 </div>
             </div>
         </div>
-    </div>
+    }
 </div>
 
 @code {
+    private bool _isLoading = true;
     private List<Budget> _budgets = new();
-    private List<PeriodOption> _availablePeriods = new();
-    private string _selectedPeriod = string.Empty;
-
-    private string _newCategory = string.Empty;
-    private decimal _newLimit;
-
     private List<string> _availableCategories = new();
 
-    private string _selectedPeriodLabel => _availablePeriods.FirstOrDefault(p => p.Value == _selectedPeriod)?.Label ?? "";
+    private List<PeriodOption> _availablePeriods = new();
+    private string _selectedPeriod = string.Empty;
+    private string _selectedPeriodLabel = string.Empty;
+
+    private Budget _editBudget = new();
+
+    private bool _hasSuggestionsAvailable = false;
+
+    private class PeriodOption
+    {
+        public string Value { get; set; } = string.Empty;
+        public string Label { get; set; } = string.Empty;
+    }
 
     protected override async Task OnInitializedAsync()
     {
-        // Load the dynamic categories
+        await LoadAvailablePeriodsAsync();
+        await LoadDataAsync();
+    }
+
+    private async Task LoadAvailablePeriodsAsync()
+    {
+        var now = DateTime.Now;
+
+        var dates = await DbContext.Transactions
+                    .Where(t => t.Date <= now) // Excludes future dates from period dropdown
+                    .Select(t => new { t.Date.Year, t.Date.Month })
+                    .Distinct()
+                    .OrderByDescending(x => x.Year)
+                    .ThenByDescending(x => x.Month)
+                    .ToListAsync();
+
+        _availablePeriods = dates.Select(d => new PeriodOption
+        {
+            Value = $"{d.Year}-{d.Month:D2}",
+            Label = new DateTime(d.Year, d.Month, 1).ToString("MMMM yyyy")
+        }).ToList();
+
+        if (!_availablePeriods.Any())
+        {
+            _availablePeriods.Add(new PeriodOption
+            {
+                Value = $"{now.Year}-{now.Month:D2}",
+                Label = now.ToString("MMMM yyyy")
+            });
+        }
+
+        _selectedPeriod = _availablePeriods.First().Value;
+        _selectedPeriodLabel = _availablePeriods.First().Label;
+    }
+
+    private async Task OnPeriodChanged(ChangeEventArgs e)
+    {
+        _selectedPeriod = e.Value?.ToString() ?? _selectedPeriod;
+        _selectedPeriodLabel = _availablePeriods.FirstOrDefault(p => p.Value == _selectedPeriod)?.Label ?? string.Empty;
+        _editBudget = new Budget(); // Reset form
+        await LoadDataAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        _isLoading = true;
+
+        // Exclude fixed bills from budget categorization options
+        var fixedCats = await DbContext.CategoryConfigs
+            .Where(c => c.IsFixedBill)
+            .Select(c => c.Name)
+            .ToListAsync();
+
         _availableCategories = await DbContext.CategoryConfigs
+            .Where(c => !c.IsFixedBill)
             .Select(c => c.Name)
             .OrderBy(n => n)
             .ToListAsync();
 
-        // Generate the last 12 months and next 12 months for the dropdown
-        var current = DateTime.Now.AddMonths(-12);
-        for (int i = 0; i < 24; i++)
-        {
-            _availablePeriods.Insert(0, new PeriodOption
-            {
-                Value = $"{current.Year}-{current.Month:D2}",
-                Label = current.ToString("MMMM yyyy")
-            });
-            current = current.AddMonths(1);
-        }
-
-        _selectedPeriod = $"{DateTime.Now.Year}-{DateTime.Now.Month:D2}";
-        await LoadBudgetsAsync();
-    }
-
-    private async Task LoadBudgetsAsync()
-    {
         _budgets = await DbContext.Budgets
             .Where(b => b.Period == _selectedPeriod)
-            .OrderBy(b => b.Category)
             .ToListAsync();
+
+        // SILENT AUTO-COPY LOGIC
+        if (!_budgets.Any())
+        {
+            var partsCopy = _selectedPeriod.Split('-');
+            var currentMonthCopy = new DateTime(int.Parse(partsCopy[0]), int.Parse(partsCopy[1]), 1);
+            var prevPeriodString = $"{currentMonthCopy.AddMonths(-1).Year}-{currentMonthCopy.AddMonths(-1).Month:D2}";
+
+            var prevBudgets = await DbContext.Budgets.Where(b => b.Period == prevPeriodString).ToListAsync();
+
+            if (prevBudgets.Any())
+            {
+                foreach (var pb in prevBudgets)
+                {
+                    DbContext.Budgets.Add(new Budget { Id = Guid.NewGuid(), Period = _selectedPeriod, Category = pb.Category, MonthlyLimit = pb.MonthlyLimit });
+                }
+                await DbContext.SaveChangesAsync();
+
+                _budgets = await DbContext.Budgets.Where(b => b.Period == _selectedPeriod).ToListAsync();
+                ToastService.ShowMessage("Budgets Rolled Over", $"Automatically carried over {prevBudgets.Count} budgets from last month.", "bi-check-circle-fill", 5);
+            }
+        }
+
+        // CHECK IF SUGGESTIONS ARE AVAILABLE
+        var parts = _selectedPeriod.Split('-');
+        var currentMonthStart = new DateTime(int.Parse(parts[0]), int.Parse(parts[1]), 1);
+        var threeMonthsAgo = currentMonthStart.AddMonths(-3);
+
+        var recentSpends = await DbContext.Transactions
+                    .Where(t => t.Date >= threeMonthsAgo && t.Date < currentMonthStart && t.Type == "Expense")
+                    .Where(t => !fixedCats.Contains(t.Category ?? ""))
+                    .GroupBy(t => t.Category ?? "Uncategorized")
+                    .Select(g => new { Category = g.Key, AverageMonthly = g.Sum(t => t.Amount) / 3 })
+                    .ToListAsync();
+
+        // Will turn true only if there is a category averaging > $15 that isn't already in this month's budget list
+        _hasSuggestionsAvailable = recentSpends.Any(spend =>
+            spend.AverageMonthly >= 15 &&
+            !_budgets.Any(b => b.Category == spend.Category) &&
+            spend.Category != "Uncategorized");
+
+        _isLoading = false;
     }
+
+    private bool IsSaveDisabled => string.IsNullOrWhiteSpace(_editBudget.Category) || _editBudget.MonthlyLimit <= 0;
 
     private async Task SaveBudgetAsync()
     {
-        var existing = _budgets.FirstOrDefault(b => b.Category == _newCategory);
+        var existing = _budgets.FirstOrDefault(b => b.Category == _editBudget.Category);
+
         if (existing != null)
         {
-            existing.MonthlyLimit = _newLimit;
+            existing.MonthlyLimit = _editBudget.MonthlyLimit;
             DbContext.Budgets.Update(existing);
+            ToastService.ShowMessage("Budget Updated", $"Updated {_editBudget.Category}.", "bi-pencil", 2);
         }
         else
         {
             var newBudget = new Budget
             {
                 Id = Guid.NewGuid(),
-                Category = _newCategory,
-                MonthlyLimit = _newLimit,
-                Period = _selectedPeriod
+                Period = _selectedPeriod,
+                Category = _editBudget.Category,
+                MonthlyLimit = _editBudget.MonthlyLimit
             };
-            await DbContext.Budgets.AddAsync(newBudget);
+            DbContext.Budgets.Add(newBudget);
+            ToastService.ShowMessage("Budget Added", $"Created limit for {_editBudget.Category}.", "bi-plus-circle", 5);
         }
 
         await DbContext.SaveChangesAsync();
-        _newCategory = string.Empty;
-        _newLimit = 0;
-        await LoadBudgetsAsync();
+        _editBudget = new Budget(); // Clear form
+        await LoadDataAsync();
+    }
+
+    private void EditBudget(Budget budget)
+    {
+        _editBudget = new Budget
+        {
+            Id = budget.Id,
+            Category = budget.Category,
+            MonthlyLimit = budget.MonthlyLimit,
+            Period = budget.Period
+        };
     }
 
     private async Task DeleteBudgetAsync(Budget budget)
     {
         DbContext.Budgets.Remove(budget);
         await DbContext.SaveChangesAsync();
-        await LoadBudgetsAsync();
+        ToastService.ShowMessage("Budget Removed", $"Deleted {_editBudget.Category} limit.", "bi-trash", 0);
+        await LoadDataAsync();
     }
 
-    private async Task CopyPreviousMonthBudgetsAsync()
+    // --- INTELLIGENT HELPERS ---
+
+    private async Task CopyFromPreviousMonthAsync()
     {
         var parts = _selectedPeriod.Split('-');
-        var currentDate = new DateTime(int.Parse(parts[0]), int.Parse(parts[1]), 1);
-        var prevDate = currentDate.AddMonths(-1);
-        var prevPeriod = $"{prevDate.Year}-{prevDate.Month:D2}";
+        var currentMonth = new DateTime(int.Parse(parts[0]), int.Parse(parts[1]), 1);
+        var prevPeriodString = $"{currentMonth.AddMonths(-1).Year}-{currentMonth.AddMonths(-1).Month:D2}";
 
-        var previousBudgets = await DbContext.Budgets.Where(b => b.Period == prevPeriod).ToListAsync();
+        var prevBudgets = await DbContext.Budgets.Where(b => b.Period == prevPeriodString).ToListAsync();
 
-        foreach (var pb in previousBudgets)
+        if (!prevBudgets.Any())
         {
-            await DbContext.Budgets.AddAsync(new Budget
+            ToastService.ShowMessage("No Data", "No budgets were found in the previous month to copy.", "bi-info-circle", 0);
+            return;
+        }
+
+        foreach (var pb in prevBudgets)
+        {
+            if (!_budgets.Any(b => b.Category == pb.Category))
             {
-                Id = Guid.NewGuid(),
-                Category = pb.Category,
-                MonthlyLimit = pb.MonthlyLimit,
-                Period = _selectedPeriod
-            });
+                DbContext.Budgets.Add(new Budget { Id = Guid.NewGuid(), Period = _selectedPeriod, Category = pb.Category, MonthlyLimit = pb.MonthlyLimit });
+            }
         }
 
         await DbContext.SaveChangesAsync();
-        await LoadBudgetsAsync();
+        await LoadDataAsync();
+        ToastService.ShowMessage("Success", "Previous limits have been imported.", "bi-check", 5);
     }
 
-    private class PeriodOption
+    private async Task AutoGenerateFromAveragesAsync()
     {
-        public string Value { get; set; } = string.Empty;
-        public string Label { get; set; } = string.Empty;
+        _isLoading = true;
+
+        var fixedCats = await DbContext.CategoryConfigs.Where(c => c.IsFixedBill).Select(c => c.Name).ToListAsync();
+
+        var parts = _selectedPeriod.Split('-');
+        var currentMonthStart = new DateTime(int.Parse(parts[0]), int.Parse(parts[1]), 1);
+        var threeMonthsAgo = currentMonthStart.AddMonths(-3);
+
+        // Calculate 90-day average monthly spend for discretionary categories
+        var recentSpends = await DbContext.Transactions
+            .Where(t => t.Date >= threeMonthsAgo && t.Date < currentMonthStart && t.Type == "Expense")
+            .Where(t => !fixedCats.Contains(t.Category ?? ""))
+            .GroupBy(t => t.Category ?? "Uncategorized")
+            .Select(g => new { Category = g.Key, AverageMonthly = g.Sum(t => t.Amount) / 3 })
+            .ToListAsync();
+
+        int generatedCount = 0;
+
+        foreach (var spend in recentSpends)
+        {
+            // Skip tiny ghost expenses or categories that already have a budget mapped this month
+            if (spend.AverageMonthly < 15 || _budgets.Any(b => b.Category == spend.Category) || spend.Category == "Uncategorized") continue;
+
+            // AI Baseline Strategy: Round average up to the nearest $50 to build in a realistic buffer
+            decimal recommendedLimit = Math.Ceiling(spend.AverageMonthly / 50m) * 50m;
+
+            DbContext.Budgets.Add(new Budget
+            {
+                Id = Guid.NewGuid(),
+                Period = _selectedPeriod,
+                Category = spend.Category,
+                MonthlyLimit = recommendedLimit
+            });
+            
+            generatedCount++;
+        }
+        if (generatedCount > 0)
+        {
+            await DbContext.SaveChangesAsync();
+            ToastService.ShowMessage("Baselines Generated", $"Analyzed 90-day history and generated {generatedCount} realistic budget limits.", "bi-bar-chart-fill", 15);
+           
+            await LoadDataAsync();
+        }
+        else
+        {
+            ToastService.ShowMessage("Up to Date", "No new baseline suggestions found based on your history.", "bi-info-circle", 0);
+            _isLoading = false;
+        }
     }
 }

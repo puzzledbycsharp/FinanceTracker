@@ -8,6 +8,7 @@
 @inject FinanceDbContext DbContext
 @inject CategoryMemoryService MemoryService
 @inject NavigationManager Navigation
+@inject ToastService ToastService
 @implements IDisposable
 
 <div class="mx-auto max-w-7xl">
@@ -426,6 +427,8 @@
         // Push the update strictly through the centralized state service
         await TxStateService.UpdateCategoryAsync(txn, newCategory);
         await MemoryService.LearnCategoryAsync(txn.CleanedDescription, newCategory);
+        // Inside your save category method:
+        ToastService.ShowMessage("Transaction Organized", "You categorized a transaction.", "bi-tags-fill", 5);
     }
 
     // --- Split Modal Logic ---
