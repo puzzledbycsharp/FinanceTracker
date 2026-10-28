@@ -59,7 +59,6 @@ namespace FinanceTracker.Shared.Services
             if (await HasAchievementAsync(badgeId)) return;
 
             var fixedCategories = await _dbContext.CategoryConfigs.Where(c => c.IsFixedBill).Select(c => c.Name).ToListAsync();
-
             bool spentMoney = await _dbContext.Transactions.AnyAsync(t => t.Date.Date == targetDate.Date && t.Type == "Expense" && !fixedCategories.Contains(t.Category ?? ""));
 
             if (!spentMoney)
@@ -67,12 +66,12 @@ namespace FinanceTracker.Shared.Services
                 profile.CurrentNoSpendStreak++;
                 if (profile.CurrentNoSpendStreak > profile.LongestNoSpendStreak) profile.LongestNoSpendStreak = profile.CurrentNoSpendStreak;
 
-                // Call ToastService normally; the background listener will automatically catch it and save it
-                _toastService.ShowMessage("No Spend Day!", $"You kept your wallet closed on {targetDate:ddd, MMM d}.", "bi-wallet2", 15);
+                // Use the safe helper method
+                await AwardBadgeAsync(badgeId, "No Spend Day!", $"You kept your wallet closed on {targetDate:ddd, MMM d}.", 15, "bi-wallet2", profile);
 
                 if (profile.CurrentNoSpendStreak % 3 == 0)
                 {
-                    _toastService.ShowMessage("3-Day Streak!", "Three days in a row with zero discretionary spending!", "bi-fire", 50);
+                    await AwardBadgeAsync($"Streak3-{targetDate:yyyy-MM-dd}", "3-Day Streak!", "Three days in a row with zero discretionary spending!", 50, "bi-fire", profile);
                 }
             }
             else
@@ -93,8 +92,28 @@ namespace FinanceTracker.Shared.Services
 
             if (weeklySpend < 150m)
             {
-                _toastService.ShowMessage("Weekly Budget Boss", $"You kept discretionary spending under $150 this week ({weeklySpend:C}).", "bi-trophy", 100);
+                await AwardBadgeAsync(badgeId, "Weekly Budget Boss", $"You kept discretionary spending under $150 this week ({weeklySpend:C}).", 100, "bi-trophy", profile);
             }
+        }
+
+        // --- RESTORED HELPER ---
+        private async Task AwardBadgeAsync(string badgeId, string displayTitle, string description, int points, string icon, GamificationProfile profile)
+        {
+            profile.TotalPoints += points;
+
+            var achievement = new EarnedAchievement
+            {
+                Title = displayTitle,
+                Description = badgeId, // We map the hidden ID here so HasAchievementAsync works correctly!
+                PointsAwarded = points,
+                Icon = icon,
+                DateEarned = DateTime.Now
+            };
+
+            _dbContext.EarnedAchievements.Add(achievement);
+
+            // Show the toast, but bypass the background event listener to prevent duplicate database saves
+            _toastService.ShowMessage(displayTitle, description, icon, points, saveToLedger: false);
         }
 
         private async Task<GamificationProfile> GetOrCreateProfileAsync()

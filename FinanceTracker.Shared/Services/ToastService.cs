@@ -25,7 +25,8 @@ namespace FinanceTracker.Shared.Services
             ShowMessage(title, message, icon, points);
         }
 
-        public void ShowMessage(string title, string message, string icon, int points = 0)
+        // Add the saveToLedger flag at the end
+        public void ShowMessage(string title, string message, string icon, int points = 0, bool saveToLedger = true)
         {
             var toast = new ToastMessage
             {
@@ -36,16 +37,14 @@ namespace FinanceTracker.Shared.Services
                 Points = points
             };
 
-            // 1. Show the UI toast
             OnShow?.Invoke(toast);
 
-            // 2. If the toast has points, alert the background gamification listener
-            if (points > 0)
+            // Only broadcast to the background saver if this is a UI-triggered event
+            if (points > 0 && saveToLedger)
             {
                 OnRewardEarned?.Invoke(title, message, icon, points);
             }
 
-            // 3. Auto-dismiss after 6 seconds
             Task.Run(async () =>
             {
                 await Task.Delay(6000);

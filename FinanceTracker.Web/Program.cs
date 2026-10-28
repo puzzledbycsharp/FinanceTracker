@@ -20,48 +20,42 @@ bool isDemoMode = builder.Configuration.GetValue<bool>("EnvironmentSettings:IsDe
 // Route to the correct database file
 string dbFileName = isDemoMode ? "finance-test.db" : "finance.db";
 string dbPath = Path.Combine(builder.Environment.ContentRootPath, dbFileName);
-
 builder.Services.AddScoped(sp => new FinanceDbContext(dbPath));
 
-// Register these in FinanceTracker.Web/Program.cs
+// Core Application Services
 builder.Services.AddScoped<FinanceTracker.Web.Services.PdfExtractionService>();
 builder.Services.AddScoped<CategoryMemoryService>();
 builder.Services.AddScoped<ICsvParserService, BankCsvParserService>();
-
-// 2. Register your Google Auth and Sync Services
-builder.Services.AddScoped<IGoogleAuthService, WebGoogleAuthService>();
-builder.Services.AddScoped(sp =>
-{
-    var authService = sp.GetRequiredService<IGoogleAuthService>();
-    return new GoogleDriveSyncService(authService, dbPath);
-});
-
-// 3. Configure Google OIDC Authentication
-builder.Services.AddOidcAuthentication(options =>
-{
-    // Replace this with the Web Client ID you generated in Google Cloud Console
-    options.ProviderOptions.ClientId = "YOUR_WEB_CLIENT_ID.apps.googleusercontent.com";
-
-    // Google's authentication endpoint
-    options.ProviderOptions.Authority = "https://accounts.google.com/";
-    options.ProviderOptions.ResponseType = "id_token token";
-
-    // Request the hidden app data folder scope required by the Sync Service
-    options.ProviderOptions.DefaultScopes.Add("https://www.googleapis.com/auth/drive.appdata");
-});
-
-builder.Services.AddAuthorization();
 builder.Services.AddScoped<FinancialInsightService>();
 builder.Services.AddScoped<TransactionService>();
 builder.Services.AddScoped<ToastService>();
 builder.Services.AddScoped<GamificationEngineService>();
 builder.Services.AddScoped<TransactionStateService>();
 
+// 2. Configure HttpClient (Required by the new GoogleDriveSyncService)
 builder.Services.AddScoped(sp =>
 {
     var navigationManager = sp.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>();
     return new HttpClient { BaseAddress = new Uri(navigationManager.BaseUri) };
 });
+
+// 3. Register the new Google Drive Sync Service
+// (Removed the old IGoogleAuthService duplicate registration)
+builder.Services.AddScoped<FinanceTracker.Shared.Services.GoogleDriveSyncService>();
+
+/* 
+// TEMPORARILY DISABLED: 
+// We are using a hardcoded token in GoogleDriveSyncService for testing. 
+// Uncomment this later when we implement the full dynamic login UI.
+builder.Services.AddOidcAuthentication(options =>
+{
+    options.ProviderOptions.ClientId = "YOUR_WEB_CLIENT_ID.apps.googleusercontent.com";
+    options.ProviderOptions.Authority = "https://accounts.google.com/";
+    options.ProviderOptions.ResponseType = "id_token token";
+    options.ProviderOptions.DefaultScopes.Add("https://www.googleapis.com/auth/drive.appdata");
+});
+builder.Services.AddAuthorization();
+*/
 
 var app = builder.Build();
 
@@ -96,7 +90,6 @@ if (isDemoMode)
         db.Transactions.AddRange(freshDemoData);
         db.SaveChanges();
 
-
         app.Logger.LogInformation($"Successfully seeded {freshDemoData.Count} demo transactions.");
 
         // Seed 6 months of Budgets
@@ -121,7 +114,6 @@ if (isDemoMode)
         }
 
         db.SaveChanges();
-
     }
     else
     {
@@ -138,7 +130,6 @@ if (app.Environment.IsDevelopment())
 else
 {
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
-    // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
     app.UseHsts();
 }
 
@@ -152,7 +143,6 @@ app.MapRazorComponents<App>()
         typeof(FinanceTracker.Shared._Imports).Assembly,
         typeof(FinanceTracker.Web.Client._Imports).Assembly);
 
-// Add this right before app.Run();
 app.MapPost("/api/extract-pdf", async (
     [Microsoft.AspNetCore.Mvc.FromForm] IFormFile file,
     [Microsoft.AspNetCore.Mvc.FromServices] FinanceTracker.Web.Services.PdfExtractionService pdfExtractor,
